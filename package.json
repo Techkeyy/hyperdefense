@@ -1,0 +1,40 @@
+{
+  "name": "hyperdefense",
+  "version": "0.1.0",
+  "description": "Multi-graph supply chain blast radius engine built on HydraDB",
+  "type": "module",
+  "bin": {
+    "hyperdefense": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "blast": "tsx src/cli.ts blast",
+    "ingest": "tsx src/cli.ts ingest",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "supply-chain",
+    "security",
+    "graph-database",
+    "hydradb",
+    "blast-radius",
+    "npm",
+    "dependency-graph"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "neo4j-driver": "^5.27.0",
+    "commander": "^13.1.0",
+    "chalk": "^5.4.1",
+    "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "vitest": "^3.1.0",
+    "@types/node": "^22.10.0"
+  }
+}
