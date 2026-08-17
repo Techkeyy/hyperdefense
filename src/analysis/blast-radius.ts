@@ -1,66 +1,77 @@
+import neo4j from "neo4j-driver";
 import { runQuery } from "../db/connection.js";
-import { QUERIES } from "../db/queries.js";
+import { QUERIES, downstreamBlastRadiusQuery } from "../db/queries.js";
+import { nodeId } from "../db/node-id.js";
 
 export interface BlastRadiusResult {
-  downstream: Array<{ package: string; depth: number }>;
-  lateralMovement: Array<{
-    maintainer: string;
-    atRiskPackages: string[];
-  }>;
-  extendedBlast: Array<{
-    package: string;
-    entryPoint: string;
-    depth: number;
-  }>;
+  downstream: Array<{ name: string }>;
+  lateralMovement: Array<{ maintainer: string; atRiskPackages: string[] }>;
   totalAffected: number;
+}
+
+const int = neo4j.int;
+
+/** Rows come back with names as strings; collect() columns come back as arrays. */
+function asString(v: unknown): string {
+  return typeof v === "string" ? v : String(v ?? "");
 }
 
 export async function analyzeBlastRadius(
   packageName: string,
+  maxDepth = 10,
 ): Promise<BlastRadiusResult> {
-  const [downstream, lateral, extended] = await Promise.all([
-    runQuery<{ package: string; depth: { low: number } }>(
-      QUERIES.downstreamBlastRadius,
-      { package: packageName },
-    ),
-    runQuery<{ maintainer: string; atRiskPackages: string[] }>(
+  const id = nodeId("package", packageName);
+
+  const [downstream, lateral] = await Promise.all([
+    runQuery<{ name: string }>(downstreamBlastRadiusQuery(maxDepth), {
+      id: int(id),
+    }),
+    runQuery<{ maintainer: string; otherNames: string[] }>(
       QUERIES.sharedMaintainerRisk,
-      { package: packageName },
+      { id: int(id) },
     ),
-    runQuery<{
-      package: string;
-      entryPoint: string;
-      depth: { low: number };
-    }>(QUERIES.maintainerBlastRadius, { package: packageName }),
   ]);
 
-  const allAffected = new Set<string>();
-  const downstreamList = downstream.map((r) => {
-    const name = r.package;
-    const depth = typeof r.depth === "object" ? r.depth.low : Number(r.depth);
-    allAffected.add(name);
-    return { package: name, depth };
-  });
+  const affected = new Set<string>();
 
-  const lateralList = lateral.map((r) => {
-    for (const p of r.atRiskPackages) allAffected.add(p);
-    return {
-      maintainer: r.maintainer,
-      atRiskPackages: r.atRiskPackages,
-    };
-  });
+  // De-duplicate downstream packages reachable by multiple paths (HydraDB has
+  // no DISTINCT aggregate, so this is done here).
+  const downstreamSeen = new Set<string>();
+  const downstreamList: Array<{ name: string }> = [];
+  for (const row of downstream) {
+    const name = asString(row.name);
+    if (!name || downstreamSeen.has(name)) continue;
+    downstreamSeen.add(name);
+    affected.add(name);
+    downstreamList.push({ name });
+  }
 
-  const extendedList = extended.map((r) => {
-    const name = r.package;
-    const depth = typeof r.depth === "object" ? r.depth.low : Number(r.depth);
-    allAffected.add(name);
-    return { package: name, entryPoint: r.entryPoint, depth };
-  });
+  // Group maintainer overlap per maintainer, deduping their package lists.
+  const byMaintainer = new Map<string, Set<string>>();
+  for (const row of lateral) {
+    const maintainer = asString(row.maintainer);
+    const names = Array.isArray(row.otherNames) ? row.otherNames : [];
+    const set = byMaintainer.get(maintainer) ?? new Set<string>();
+    for (const n of names) {
+      const name = asString(n);
+      if (name && name !== packageName) {
+        set.add(name);
+        affected.add(name);
+      }
+    }
+    byMaintainer.set(maintainer, set);
+  }
+
+  const lateralList = [...byMaintainer.entries()]
+    .filter(([, pkgs]) => pkgs.size > 0)
+    .map(([maintainer, pkgs]) => ({
+      maintainer,
+      atRiskPackages: [...pkgs].sort(),
+    }));
 
   return {
     downstream: downstreamList,
     lateralMovement: lateralList,
-    extendedBlast: extendedList,
-    totalAffected: allAffected.size,
+    totalAffected: affected.size,
   };
 }

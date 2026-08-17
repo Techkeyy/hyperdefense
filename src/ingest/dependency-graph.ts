@@ -1,77 +1,184 @@
+import neo4j from "neo4j-driver";
 import { runQuery } from "../db/connection.js";
 import { QUERIES } from "../db/queries.js";
+import { nodeId } from "../db/node-id.js";
 import { fetchPackage, type NpmPackageData } from "./npm-registry.js";
 
-export async function ingestPackage(
+/**
+ * HydraDB requires an integer node id, and neo4j-driver encodes a bare JS
+ * number as a Float. Every id must therefore be wrapped as a driver Integer or
+ * the write is rejected with "node id property must be an integer".
+ */
+const int = neo4j.int;
+
+interface PackageRow {
+  id: ReturnType<typeof int>;
+  name: string;
+  description: string;
+  latestVersion: string;
+}
+interface MaintainerRow {
+  id: ReturnType<typeof int>;
+  username: string;
+  email: string;
+}
+interface VersionRow {
+  id: ReturnType<typeof int>;
+  package: string;
+  version: string;
+  publishedAt: string;
+}
+interface EdgeRow {
+  src: ReturnType<typeof int>;
+  dst: ReturnType<typeof int>;
+}
+
+/**
+ * Accumulates rows during a crawl and flushes them to HydraDB in batches via
+ * the UNWIND upsert queries. Batching is the ingestion path HydraDB actually
+ * supports (per-row CREATE of a lone node is not executable), and it keeps the
+ * round-trip count bounded regardless of graph size.
+ */
+export class IngestBuffer {
+  private packages = new Map<string, PackageRow>();
+  private maintainers = new Map<string, MaintainerRow>();
+  private versions = new Map<string, VersionRow>();
+  private dependsOn: EdgeRow[] = [];
+  private publishes: EdgeRow[] = [];
+  private hasVersion: EdgeRow[] = [];
+
+  addPackage(name: string, description = "", latestVersion = ""): number {
+    const id = nodeId("package", name);
+    // Keep the richest record: a package first seen as a bare dependency may
+    // later be fetched with full metadata.
+    const existing = this.packages.get(name);
+    if (!existing || description || latestVersion) {
+      this.packages.set(name, {
+        id: int(id),
+        name,
+        description: description || existing?.description || "",
+        latestVersion: latestVersion || existing?.latestVersion || "",
+      });
+    }
+    return id;
+  }
+
+  addMaintainer(username: string, email = ""): number {
+    const id = nodeId("maintainer", username);
+    this.maintainers.set(username, { id: int(id), username, email });
+    return id;
+  }
+
+  addVersion(pkg: string, version: string, publishedAt: string): number {
+    const key = `${pkg}@${version}`;
+    const id = nodeId("version", key);
+    this.versions.set(key, {
+      id: int(id),
+      package: pkg,
+      version,
+      publishedAt,
+    });
+    return id;
+  }
+
+  addDependency(fromPkg: string, toPkg: string): void {
+    this.dependsOn.push({
+      src: int(nodeId("package", fromPkg)),
+      dst: int(nodeId("package", toPkg)),
+    });
+  }
+
+  addPublishes(username: string, pkg: string): void {
+    this.publishes.push({
+      src: int(nodeId("maintainer", username)),
+      dst: int(nodeId("package", pkg)),
+    });
+  }
+
+  addHasVersion(pkg: string, versionKey: string): void {
+    this.hasVersion.push({
+      src: int(nodeId("package", pkg)),
+      dst: int(nodeId("version", versionKey)),
+    });
+  }
+
+  counts() {
+    return {
+      packages: this.packages.size,
+      maintainers: this.maintainers.size,
+      versions: this.versions.size,
+      dependencyEdges: this.dependsOn.length,
+      publishesEdges: this.publishes.length,
+    };
+  }
+
+  /** Flush all buffered rows to HydraDB. Nodes before edges, so MERGE-by-id on
+   * an edge endpoint always finds a node that already carries its properties. */
+  async flush(batchSize = 500): Promise<void> {
+    await this.flushRows(QUERIES.upsertPackages, [...this.packages.values()], batchSize);
+    await this.flushRows(QUERIES.upsertMaintainers, [...this.maintainers.values()], batchSize);
+    await this.flushRows(QUERIES.upsertVersions, [...this.versions.values()], batchSize);
+    await this.flushRows(QUERIES.upsertDependencyEdges, this.dependsOn, batchSize);
+    await this.flushRows(QUERIES.upsertPublishesEdges, this.publishes, batchSize);
+    await this.flushRows(QUERIES.upsertHasVersionEdges, this.hasVersion, batchSize);
+  }
+
+  private async flushRows(
+    query: string,
+    rows: unknown[],
+    batchSize: number,
+  ): Promise<void> {
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize);
+      await runQuery(query, { rows: batch });
+    }
+  }
+}
+
+/**
+ * Crawl a package and its transitive dependencies into the buffer. Network and
+ * parsing only; the graph write happens once in buffer.flush().
+ */
+export async function crawlPackage(
   name: string,
+  buffer: IngestBuffer,
   visited: Set<string>,
   maxDepth: number,
   currentDepth = 0,
-): Promise<number> {
-  if (visited.has(name) || currentDepth > maxDepth) return 0;
+): Promise<void> {
+  if (visited.has(name) || currentDepth > maxDepth) return;
   visited.add(name);
 
   let pkg: NpmPackageData;
   try {
     pkg = await fetchPackage(name);
   } catch {
-    return 0;
+    // Unreachable/renamed package: record the node so edges to it still resolve.
+    buffer.addPackage(name);
+    return;
   }
 
-  const latestTag = pkg["dist-tags"]?.latest;
+  const latestTag = pkg["dist-tags"]?.latest ?? "";
   const latestVersion = latestTag ? pkg.versions?.[latestTag] : undefined;
 
-  await runQuery(QUERIES.upsertPackage, {
-    name: pkg.name,
-    description: pkg.description ?? "",
-    latestVersion: latestTag ?? "",
-  });
+  buffer.addPackage(pkg.name, pkg.description ?? "", latestTag);
 
-  // Ingest maintainers
   if (pkg.maintainers) {
     for (const m of pkg.maintainers) {
-      await runQuery(QUERIES.upsertMaintainer, {
-        username: m.name,
-        email: m.email ?? "",
-      });
-      await runQuery(QUERIES.linkMaintainerToPackage, {
-        username: m.name,
-        package: pkg.name,
-      });
+      buffer.addMaintainer(m.name, m.email ?? "");
+      buffer.addPublishes(m.name, pkg.name);
     }
   }
 
-  // Ingest versions with timestamps
-  if (pkg.time && latestTag) {
-    const publishedAt = pkg.time[latestTag] ?? "";
-    const versionId = `${pkg.name}@${latestTag}`;
-    await runQuery(QUERIES.upsertVersion, {
-      id: versionId,
-      package: pkg.name,
-      version: latestTag,
-      publishedAt,
-    });
+  if (latestTag && pkg.time?.[latestTag]) {
+    buffer.addVersion(pkg.name, latestTag, pkg.time[latestTag]);
+    buffer.addHasVersion(pkg.name, `${pkg.name}@${latestTag}`);
   }
-
-  let count = 1;
 
   const deps = latestVersion?.dependencies ?? {};
-  for (const [depName, versionRange] of Object.entries(deps)) {
-    // Create the dependency package node first (so the edge can be created)
-    await runQuery(QUERIES.upsertPackage, {
-      name: depName,
-      description: "",
-      latestVersion: "",
-    });
-
-    await runQuery(QUERIES.createDependency, {
-      from: pkg.name,
-      to: depName,
-      versionRange,
-    });
-
-    count += await ingestPackage(depName, visited, maxDepth, currentDepth + 1);
+  for (const depName of Object.keys(deps)) {
+    buffer.addPackage(depName);
+    buffer.addDependency(pkg.name, depName);
+    await crawlPackage(depName, buffer, visited, maxDepth, currentDepth + 1);
   }
-
-  return count;
 }

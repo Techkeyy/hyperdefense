@@ -4,7 +4,7 @@ import chalk from "chalk";
 import ora from "ora";
 import { closeConnection } from "./db/connection.js";
 import { initSchema } from "./db/schema.js";
-import { ingestPackage } from "./ingest/dependency-graph.js";
+import { IngestBuffer, crawlPackage } from "./ingest/dependency-graph.js";
 import { SEED_PACKAGES } from "./ingest/npm-registry.js";
 import { analyzeBlastRadius } from "./analysis/blast-radius.js";
 import { analyzeLateralMovement } from "./analysis/lateral-movement.js";
@@ -147,17 +147,22 @@ program
     const packages = opts.packages ?? SEED_PACKAGES.slice(0, Number(opts.count));
     const maxDepth = Number(opts.depth);
     const visited = new Set<string>();
+    const buffer = new IngestBuffer();
 
-    spinner.text = `Ingesting ${packages.length} packages (depth ${maxDepth})...`;
-
-    let total = 0;
+    // Crawl (network) into the buffer, then flush (graph write) once.
     for (const pkg of packages) {
-      spinner.text = `Ingesting ${pkg}... (${total} nodes so far)`;
-      total += await ingestPackage(pkg, visited, maxDepth);
+      spinner.text = `Crawling ${pkg}... (${visited.size} packages seen)`;
+      await crawlPackage(pkg, buffer, visited, maxDepth);
     }
 
+    const c = buffer.counts();
+    spinner.text = `Writing ${c.packages} packages, ${c.maintainers} maintainers, ${c.dependencyEdges} dependency edges to HydraDB...`;
+    await buffer.flush();
+
     spinner.succeed(
-      `Ingested ${total} packages (${visited.size} unique nodes)`,
+      `Ingested ${c.packages} packages, ${c.maintainers} maintainers, ` +
+        `${c.versions} versions, ${c.dependencyEdges} dependency edges, ` +
+        `${c.publishesEdges} publishes edges`,
     );
     await closeConnection();
   });
@@ -174,23 +179,28 @@ program
       chalk.red.bold(`\n  BLAST RADIUS: ${packageName}\n`),
     );
 
-    // Downstream
-    console.log(chalk.yellow.bold("  Downstream dependencies:"));
+    // Downstream dependency blast radius
+    console.log(
+      chalk.yellow.bold(
+        `  Downstream dependents (${result.downstream.length}):`,
+      ),
+    );
     if (result.downstream.length === 0) {
       console.log(chalk.dim("    No downstream dependents found in graph"));
     }
-    for (const d of result.downstream.slice(0, 20)) {
-      const bar = chalk.red("█".repeat(Math.min(d.depth * 2, 20)));
-      console.log(`    ${bar} ${d.package} (depth ${d.depth})`);
+    for (const d of result.downstream.slice(0, 30)) {
+      console.log(`    ${chalk.red("•")} ${d.name}`);
     }
-    if (result.downstream.length > 20) {
+    if (result.downstream.length > 30) {
       console.log(
-        chalk.dim(`    ... and ${result.downstream.length - 20} more`),
+        chalk.dim(`    ... and ${result.downstream.length - 30} more`),
       );
     }
 
-    // Lateral movement
-    console.log(chalk.magenta.bold("\n  Lateral movement risk (shared maintainers):"));
+    // Lateral movement via shared maintainers
+    console.log(
+      chalk.magenta.bold("\n  Lateral movement risk (shared maintainers):"),
+    );
     if (result.lateralMovement.length === 0) {
       console.log(chalk.dim("    No shared maintainers found"));
     }
@@ -200,25 +210,6 @@ program
           chalk.dim(` also publishes: `) +
           lm.atRiskPackages.join(", "),
       );
-    }
-
-    // Extended blast (through lateral movement)
-    if (result.extendedBlast.length > 0) {
-      console.log(
-        chalk.red.bold("\n  Extended blast (via maintainer compromise):"),
-      );
-      for (const e of result.extendedBlast.slice(0, 10)) {
-        console.log(
-          `    ${e.package} ${chalk.dim(`(via ${e.entryPoint}, depth ${e.depth})`)}`,
-        );
-      }
-      if (result.extendedBlast.length > 10) {
-        console.log(
-          chalk.dim(
-            `    ... and ${result.extendedBlast.length - 10} more`,
-          ),
-        );
-      }
     }
 
     console.log(
