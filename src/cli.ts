@@ -560,14 +560,20 @@ program
       const b = await analyzeBlastRadius(registry, packageName);
       if (b.found) {
         blast = b;
-        // Chains into whatever this repo actually resolves.
-        const targets = verify.violations.map((v) => v.package);
+        // Chains into the OTHER affected packages this branch resolves.
+        // Deliberately excludes the compromised package itself: a path from a
+        // package to itself does not exist, and targeting only the violations
+        // silently produced an empty section, hiding the most useful part of
+        // the comment.
+        const targets = [
+          ...new Set([
+            ...verify.reviewHits.map((r) => r.package),
+            ...verify.violations.map((v) => v.package),
+          ]),
+        ].filter((name) => name !== packageName);
+
         if (targets.length > 0) {
-          const r = await attackPaths(
-            registry,
-            [packageName],
-            [...new Set(targets)],
-          );
+          const r = await attackPaths(registry, [packageName], targets);
           paths = r.paths;
         }
       }

@@ -178,9 +178,9 @@ export function renderPrComment(input: PrCommentInput): string {
   out.push(
     "---",
     "",
-    `<sub>[HyperDefense](https://github.com/Techkeyy/hyperdefense) ` +
-      `. Graph analysis on HydraDB. Re-run locally with ` +
-      `\`npx hyperdefense blast ${compromised}\`.</sub>`,
+    `<sub>[HyperDefense](https://github.com/Techkeyy/hyperdefense): ` +
+      `graph analysis on HydraDB. Re-run locally with ` +
+      `\`npx hyperdefense blast ${compromised}\`</sub>`,
   );
 
   return out.join("\n");
