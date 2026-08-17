@@ -19,6 +19,14 @@ services:
 
   hydradb:
     image: ghcr.io/hydra-db/hydradb:latest
+    # The image runs as UID 10001, but Docker creates named volumes owned by
+    # root, so the process cannot write to /data/store or /data/cache. HydraDB's
+    # README calls this out for bind mounts ("without it the container cannot
+    # write its store or cache and fails on the first storage operation"), and
+    # it presents exactly the same way here: reads succeed, every write dies
+    # with a suppressed internal error. Running as root makes the volumes
+    # writable. Fine for a disposable dev container.
+    user: "0:0"
     environment:
       CLOUD_PROVIDER: local
       LOCAL_PATH: /data/store
