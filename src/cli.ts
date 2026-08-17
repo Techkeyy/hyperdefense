@@ -3,7 +3,7 @@ import { program } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import { closeConnection } from "./db/connection.js";
-import { initSchema } from "./db/schema.js";
+import { initSchema, resetGraph } from "./db/schema.js";
 import { IngestBuffer, crawlPackage } from "./ingest/dependency-graph.js";
 import { IdRegistry, defaultRegistryPath } from "./db/id-registry.js";
 import {
@@ -707,11 +707,21 @@ program
   .description(
     "Run the whole story on committed fixtures: offline and deterministic",
   )
-  .action(async () => {
+  .option(
+    "--reset",
+    "clear the graph first, so the numbers are identical on every run",
+  )
+  .action(async (opts) => {
     const step = (n: number, title: string) =>
       console.log(
         chalk.bold.cyan(`\n${"═".repeat(64)}\n  ${n}. ${title}\n${"═".repeat(64)}`),
       );
+
+    if (opts.reset) {
+      const spinner = ora("Clearing the graph...").start();
+      await resetGraph(defaultRegistryPath());
+      spinner.succeed("Graph cleared; this run starts from empty");
+    }
 
     const registry = new IdRegistry(defaultRegistryPath());
     await registry.load();
