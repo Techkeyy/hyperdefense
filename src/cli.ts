@@ -21,6 +21,10 @@ import {
   renderSummary,
 } from "./remediate/artifacts.js";
 import { verifyLockfile } from "./remediate/verify.js";
+import { renderPrComment } from "./report/pr-comment.js";
+import { findAdvisories } from "./ingest/advisories.js";
+import { runQuery } from "./db/connection.js";
+import { QUERIES } from "./db/queries.js";
 import { SEED_PACKAGES } from "./ingest/npm-registry.js";
 import { analyzeBlastRadius } from "./analysis/blast-radius.js";
 import { attackPaths } from "./analysis/multi-blast.js";
@@ -528,6 +532,165 @@ program
       chalk.dim(
         `\n  Each chain names the intermediate package that pulls in the bad\n` +
           `  code, which is where the link can be cut.\n`,
+      ),
+    );
+    await closeConnection();
+  });
+
+program
+  .command("pr-comment <package>")
+  .description(
+    "Render the finding as a pull request comment (markdown, ready to post)",
+  )
+  .requiredOption("-b, --blocklist <path>", "blocklist.json from remediate")
+  .option("-l, --lockfile <path>", "lockfile to check", "package-lock.json")
+  .option("--safe-version <version>", "clean version to suggest pinning to")
+  .option("-o, --out <path>", "write the markdown here instead of stdout")
+  .action(async (packageName, opts) => {
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+
+    const verify = await verifyLockfile(opts.blocklist, opts.lockfile);
+
+    // Graph context is best-effort: the comment is still useful without it,
+    // and a PR check should not fail because the graph is empty.
+    let blast;
+    let paths;
+    try {
+      const b = await analyzeBlastRadius(registry, packageName);
+      if (b.found) {
+        blast = b;
+        // Chains into whatever this repo actually resolves.
+        const targets = verify.violations.map((v) => v.package);
+        if (targets.length > 0) {
+          const r = await attackPaths(
+            registry,
+            [packageName],
+            [...new Set(targets)],
+          );
+          paths = r.paths;
+        }
+      }
+    } catch {
+      // Leave the graph sections out rather than failing the comment.
+    }
+
+    const markdown = renderPrComment({
+      compromised: packageName,
+      verify,
+      blast,
+      paths,
+      safeVersion: opts.safeVersion,
+    });
+
+    if (opts.out) {
+      await writeFile(opts.out, `${markdown}\n`, "utf8");
+      console.log(chalk.green(`  Wrote PR comment to ${opts.out}`));
+      console.log(
+        chalk.dim(
+          `  Post it with:  gh pr comment --body-file ${opts.out}\n`,
+        ),
+      );
+    } else {
+      console.log(markdown);
+    }
+
+    await closeConnection();
+  });
+
+program
+  .command("watch")
+  .description(
+    "Check every package in the graph against the OSV advisory feed",
+  )
+  .option(
+    "-n, --top <number>",
+    "how many affected packages to analyse in depth",
+    "3",
+  )
+  .option("--json", "emit machine-readable output")
+  .action(async (opts) => {
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+
+    const spinner = ora("Reading packages from the graph...").start();
+    const rows = await runQuery<{ name: string }>(QUERIES.allPackageNames);
+    const names = [
+      ...new Set(
+        rows.map((r) => String(r.name ?? "")).filter((n) => n.length > 0),
+      ),
+    ];
+
+    if (names.length === 0) {
+      spinner.fail("No packages in the graph. Ingest something first.");
+      await closeConnection();
+      return;
+    }
+
+    spinner.text = `Querying OSV for ${names.length} packages...`;
+    const advisories = await findAdvisories(names);
+    spinner.stop();
+
+    if (opts.json) {
+      console.log(JSON.stringify({ scanned: names.length, advisories }, null, 2));
+      await closeConnection();
+      return;
+    }
+
+    console.log(
+      chalk.bold(
+        `\n  ADVISORY WATCH: ${names.length} packages in graph, ` +
+          `${advisories.length} with known advisories\n`,
+      ),
+    );
+
+    if (advisories.length === 0) {
+      console.log(chalk.green("  Nothing in this graph has a known advisory.\n"));
+      await closeConnection();
+      return;
+    }
+
+    for (const a of advisories.slice(0, 20)) {
+      console.log(
+        `  ${chalk.red(String(a.ids.length).padStart(3))} advisories  ` +
+          `${a.packageName}` +
+          chalk.dim(
+            a.latestModified ? `  (latest ${a.latestModified.slice(0, 10)})` : "",
+          ),
+      );
+    }
+    if (advisories.length > 20) {
+      console.log(chalk.dim(`  ... and ${advisories.length - 20} more`));
+    }
+
+    // For the worst offenders, do the thing that makes this a graph tool:
+    // turn the advisory into a blast radius.
+    const top = Math.max(0, Math.min(10, Number(opts.top)));
+    if (top > 0) {
+      console.log(
+        chalk.bold(`\n  Blast radius for the top ${top}:\n`),
+      );
+      for (const a of advisories.slice(0, top)) {
+        const b = await analyzeBlastRadius(registry, a.packageName);
+        if (!b.found) continue;
+        const missed = b.totalAffected - b.downstream.length;
+        console.log(
+          `  ${chalk.red.bold(a.packageName)}: ` +
+            `${b.downstream.length} downstream, ` +
+            `${chalk.red.bold(String(b.totalAffected))} total exposed` +
+            (missed > 0
+              ? chalk.dim(` (+${missed} via shared maintainers)`)
+              : ""),
+        );
+      }
+    }
+
+    console.log(
+      chalk.dim(
+        `\n  Advisory data from OSV (osv.dev). Turn one into artifacts with:\n` +
+          chalk.cyan(
+            `    npm run dev -- remediate ${advisories[0].packageName} --out .hyperdefense\n`,
+          ),
       ),
     );
     await closeConnection();

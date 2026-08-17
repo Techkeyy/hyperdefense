@@ -52,6 +52,12 @@ on:
   push:
     branches: [main]
 
+# Least privilege: read the code, write the PR comment, nothing else. Without
+# pull-requests: write the comment step fails on the default token.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   blocklist:
     runs-on: ubuntu-latest
@@ -67,6 +73,28 @@ jobs:
         # before it can be invoked. Without this the gate fails to start, which
         # would look like a passing build in a workflow that never ran.
         run: npm run build
+      - name: Render the finding as a PR comment
+        # Runs before the gate so the explanation is posted even when the gate
+        # fails the job. A blocked merge with no reason attached is a worse
+        # experience than no gate at all.
+        if: github.event_name == 'pull_request'
+        run: |
+          npx hyperdefense pr-comment ${plan.compromised} \\
+            --blocklist .hyperdefense/blocklist.json \\
+            --out .hyperdefense/pr-comment.md
+
+      - name: Post or update the comment
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        # --edit-last keeps one comment updated instead of adding a new one on
+        # every push, which is what makes the check tolerable on a long PR.
+        run: |
+          gh pr comment "\${{ github.event.number }}" \\
+            --body-file .hyperdefense/pr-comment.md --edit-last \\
+          || gh pr comment "\${{ github.event.number }}" \\
+            --body-file .hyperdefense/pr-comment.md
+
       - name: Enforce supply-chain blocklist
         # Exits 1 when a blocked package version resolved, failing the check and
         # blocking the merge. Exit 2 means the gate could not run at all, which

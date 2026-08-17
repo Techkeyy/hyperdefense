@@ -159,6 +159,13 @@ npm run dev -- remediate body-parser --bad-versions 1.20.3 --out .hyperdefense
 
 # Enforce it. Exits 1 if a blocked version resolved, failing the CI check
 npm run dev -- verify --blocklist .hyperdefense/blocklist.json
+
+# Render the finding as a PR comment (markdown, ready for `gh pr comment`)
+npm run dev -- pr-comment body-parser \
+  --blocklist .hyperdefense/blocklist.json --out pr.md
+
+# Check every package in the graph against the OSV advisory feed
+npm run dev -- watch
 ```
 
 ### Generating the fix, not just the warning
@@ -184,7 +191,31 @@ Two deliberate judgements:
   get applied without being read.
 
 Everything here is rule-based. No model is consulted, so output is
-byte-identical run to run and safe to gate a pipeline on.
+byte-identical run to run and safe to gate a pipeline on. That is a deliberate
+choice, not a gap: a security gate whose verdict depends on a model's mood is
+not a gate, and the composition that matters here (a `GraphSink` the crawler
+writes to, independent analysis stages, a deterministic plan builder) is
+structural rather than agentic.
+
+### Closing the loop
+
+Two surfaces make this something a team would actually run, rather than a tool
+someone remembers to open.
+
+**A comment on the pull request.** `pr-comment` renders the finding as markdown:
+the gate result, the dependency-versus-maintainer contrast, the attack chains,
+and the pin to apply. The generated workflow posts it with `--edit-last`, so a
+long PR gets one updated comment rather than a new one per push, and it posts
+*before* the gate runs so a blocked merge always arrives with its reason
+attached. A blocked merge with no explanation is a worse experience than no gate
+at all.
+
+**An advisory feed.** `watch` queries [OSV](https://osv.dev) for every package in
+the graph and turns "an advisory was published" into "here is the blast radius",
+which is the half a scanner normally leaves to a human. Verified live: of five
+sampled packages, `lodash` has 10 advisories, `express` 5, and
+`@tanstack/router-core` 2. OSV's batch endpoint is used because the graph holds
+thousands of packages, with details fetched only for the ones that matter.
 
 ## How HydraDB is used
 
