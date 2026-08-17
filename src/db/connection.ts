@@ -61,13 +61,16 @@ export async function probeConnection(
     d = buildDriver(uri, auth);
     const session = d.session();
     try {
-      // HydraDB's RETURN clause is strict: it accepts only <binding>.<property>
-      // or count(*). `RETURN 1` fails ("row execution supports MATCH ...
-      // RETURN"), and `RETURN n` fails ("RETURN currently supports
-      // <binding>.<property> or count(*)"). count(*) on the whole graph
-      // executes on an empty database and confirms the socket, auth, and query
-      // planner all round-trip.
-      await session.run("MATCH (n) RETURN count(*) AS c");
+      // HydraDB requires three things a normal Cypher probe would omit:
+      //   1. RETURN can only project <binding>.<property> or count(*)
+      //   2. MATCH must anchor with an id, label, or property predicate;
+      //      bare `MATCH (n)` is rejected as "node-only MATCH requires ..."
+      //   3. `RETURN 1` without MATCH is rejected outright
+      // A labelled MATCH satisfies all three, matches zero rows on an unknown
+      // label (rather than erroring), and confirms the socket, auth, and
+      // query planner all round-trip. This shape mirrors HydraDB's own
+      // examples/query_correctness.rs test suite.
+      await session.run("MATCH (n:__HDConnCheck) RETURN count(*) AS c");
       return { ok: true };
     } finally {
       await session.close();

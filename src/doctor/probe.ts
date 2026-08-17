@@ -90,12 +90,26 @@ async function one(
  */
 const SPECS: ProbeSpec[] = [
   {
-    id: "match-count-star",
-    label: "MATCH ... RETURN count(*)",
-    matters: "baseline read; the only projection form the server documents",
+    id: "match-labelled-count",
+    label: "MATCH (n:Label) RETURN count(*)",
+    matters:
+      "the baseline read shape; every MATCH must anchor on an id, label, or property, so a labelled anchor is the smallest working example",
     run: async (d) => {
-      const r = await one(d, `MATCH (n) RETURN count(*) AS c`);
+      const r = await one(
+        d,
+        `MATCH (n:${PROBE_LABEL}) RETURN count(*) AS c`,
+      );
       return { ok: typeof toNum(r[0]?.c) === "number" };
+    },
+  },
+  {
+    id: "match-unanchored",
+    label: "MATCH (n) without predicate",
+    matters:
+      "confirmed unsupported: 'node-only MATCH requires an id, label, or property predicate'. Recorded so the matrix documents the rule",
+    run: async (d) => {
+      await one(d, `MATCH (n) RETURN count(*) AS c`);
+      return { ok: true };
     },
   },
   {
