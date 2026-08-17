@@ -5,3 +5,9 @@
 
 # Shell scripts run inside Linux containers.
 *.sh text eol=lf
+
+# Source is always text with LF endings; keeps git from ever misclassifying a
+# file as binary and normalises line endings across Windows and Linux checkouts.
+*.ts text eol=lf
+*.json text eol=lf
+*.md text eol=lf

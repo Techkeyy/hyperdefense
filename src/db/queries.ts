@@ -55,28 +55,31 @@ export const QUERIES = {
         n.publishedAt = row.publishedAt
   `,
 
-  /**
-   * DEPENDS_ON edges, source -> dependency. Rows: { src, dst }.
-   */
+  // Edge upserts follow HydraDB's tested idempotent-relationship form
+  // (src/client/bolt/tests.rs): MATCH both endpoints by label + id, then MERGE
+  // the relationship carrying its own integer id. The earlier
+  // `MERGE (a {id})-[:T]->(b {id})` form is not this shape and failed at
+  // execution. Nodes are always flushed before edges, so the MATCH resolves.
+
+  /** DEPENDS_ON, package -> dependency. Rows: { src, dst, eid }. */
   upsertDependencyEdges: `
     UNWIND $rows AS row
-    MERGE (a {id: row.src})-[:DEPENDS_ON]->(b {id: row.dst})
+    MATCH (s:Package {id: row.src}), (d:Package {id: row.dst})
+    MERGE (s)-[:DEPENDS_ON {id: row.eid}]->(d)
   `,
 
-  /**
-   * PUBLISHES edges, maintainer -> package. Rows: { src, dst }.
-   */
+  /** PUBLISHES, maintainer -> package. Rows: { src, dst, eid }. */
   upsertPublishesEdges: `
     UNWIND $rows AS row
-    MERGE (a {id: row.src})-[:PUBLISHES]->(b {id: row.dst})
+    MATCH (s:Maintainer {id: row.src}), (d:Package {id: row.dst})
+    MERGE (s)-[:PUBLISHES {id: row.eid}]->(d)
   `,
 
-  /**
-   * HAS_VERSION edges, package -> version. Rows: { src, dst }.
-   */
+  /** HAS_VERSION, package -> version. Rows: { src, dst, eid }. */
   upsertHasVersionEdges: `
     UNWIND $rows AS row
-    MERGE (a {id: row.src})-[:HAS_VERSION]->(b {id: row.dst})
+    MATCH (s:Package {id: row.src}), (d:Version {id: row.dst})
+    MERGE (s)-[:HAS_VERSION {id: row.eid}]->(d)
   `,
 
   // -- Blast radius: dependency layer --------------------------------------

@@ -1,7 +1,7 @@
 import neo4j from "neo4j-driver";
 import { runQuery } from "../db/connection.js";
 import { QUERIES } from "../db/queries.js";
-import { nodeId } from "../db/node-id.js";
+import { nodeId, edgeId } from "../db/node-id.js";
 import { fetchPackage, type NpmPackageData } from "./npm-registry.js";
 
 /**
@@ -31,6 +31,7 @@ interface VersionRow {
 interface EdgeRow {
   src: ReturnType<typeof int>;
   dst: ReturnType<typeof int>;
+  eid: ReturnType<typeof int>;
 }
 
 /**
@@ -85,6 +86,7 @@ export class IngestBuffer {
     this.dependsOn.push({
       src: int(nodeId("package", fromPkg)),
       dst: int(nodeId("package", toPkg)),
+      eid: int(edgeId("DEPENDS_ON", fromPkg, toPkg)),
     });
   }
 
@@ -92,6 +94,7 @@ export class IngestBuffer {
     this.publishes.push({
       src: int(nodeId("maintainer", username)),
       dst: int(nodeId("package", pkg)),
+      eid: int(edgeId("PUBLISHES", username, pkg)),
     });
   }
 
@@ -99,6 +102,7 @@ export class IngestBuffer {
     this.hasVersion.push({
       src: int(nodeId("package", pkg)),
       dst: int(nodeId("version", versionKey)),
+      eid: int(edgeId("HAS_VERSION", pkg, versionKey)),
     });
   }
 
