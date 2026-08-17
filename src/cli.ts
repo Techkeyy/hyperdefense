@@ -454,6 +454,13 @@ program
     }
 
     if (opts.compare) {
+      // Reset the connection before the comparison. The MSpaths query returns
+      // Bolt Path values, and the very next query on the same connection was
+      // failing to decode ("offset out of range ... received 9"), which points
+      // at leftover connection state rather than anything wrong with the loop.
+      // A fresh driver sidesteps it; the alternative is a crash mid-comparison.
+      await closeConnection();
+
       // The point of the native call is that this loop is what it replaces.
       const t1 = Date.now();
       const union = new Set<string>();
@@ -567,6 +574,11 @@ program
           `  This is the query shape that answers that, without a client-side loop.`,
       ),
     );
+
+    // Reset the connection after the path-procedure query. See blast-many:
+    // a query following one that returned Bolt Path values was failing to
+    // decode, and a fresh driver avoids it.
+    await closeConnection();
 
     // 4. Temporal layer.
     step(4, "Temporal exposure window");

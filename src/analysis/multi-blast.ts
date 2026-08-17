@@ -21,6 +21,15 @@ import type { IdRegistry } from "../db/id-registry.js";
  *  - sources are INDEXED SELECTORS (label + property + values), not bound nodes
  */
 
+/**
+ * Paths to return per source. The procedure's default is 1, which yields a
+ * single shortest path per source and under-reports reachability. High enough
+ * to enumerate a realistic blast radius, bounded so a pathological graph cannot
+ * hang the query.
+ */
+const PATH_COUNT = 5000;
+const RESULT_LIMIT = 20000;
+
 export interface MultiBlastResult {
   sources: string[];
   affected: string[];
@@ -97,10 +106,17 @@ export async function multiBlastRadius(
 
   // Must start with CALL. Traverses the materialised reverse edge outward,
   // which is how "who depends on these" is expressed here.
+  //
+  // pathCount is explicit and high on purpose. It defaults to 1
+  // (query/path_procedure.rs: config_u64(..., "pathCount").unwrap_or(1)), which
+  // returns a single shortest path per source and silently under-reports the
+  // blast radius: the first version of this omitted it and found 2 affected
+  // packages where the plain traversal found 3.
   const query =
     `CALL algo.MSpaths({sourceLabel: 'Package', sourceProperty: 'name', ` +
     `sourceValues: [${values}], relTypes: ['DEPENDED_ON_BY'], ` +
-    `maxLen: ${depth}, relDirection: 'outgoing', resultLimit: 10000}) ` +
+    `maxLen: ${depth}, relDirection: 'outgoing', ` +
+    `pathCount: ${PATH_COUNT}, resultLimit: ${RESULT_LIMIT}}) ` +
     `YIELD path RETURN path`;
 
   let rows: Array<{ path: DriverPath }>;
