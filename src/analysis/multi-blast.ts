@@ -1,6 +1,6 @@
 import { runIsolatedQuery } from "../db/connection.js";
 import type { IdRegistry } from "../db/id-registry.js";
-import { safeInt } from "../util/num.js";
+import { safeInt, MAX_TRAVERSAL_HOPS } from "../util/num.js";
 
 /**
  * HydraDB's native `algo.MSpaths` path procedure.
@@ -130,6 +130,8 @@ export async function attackPaths(
   /** Rows the server returned that produced no usable chain. Non-zero means a
    * decode problem, not an absence of paths. */
   undecodableRows: number;
+  /** The server's actual complaint when native is false. */
+  error?: string;
 }> {
   const knownSources = compromised.filter(
     (n) => registry.lookup("package", n) !== undefined,
@@ -141,7 +143,7 @@ export async function attackPaths(
     return { paths: [], native: true, undecodableRows: 0 };
   }
 
-  const depth = safeInt(maxDepth, 6, 1, 20);
+  const depth = safeInt(maxDepth, 6, 1, MAX_TRAVERSAL_HOPS);
   const count = safeInt(maxPathsPerPair, 5, 1, 1000);
 
   const query =
@@ -155,8 +157,16 @@ export async function attackPaths(
   let rows: Array<{ path: DriverPath }>;
   try {
     rows = await runIsolatedQuery<{ path: DriverPath }>(query);
-  } catch {
-    return { paths: [], native: false, undecodableRows: 0 };
+  } catch (err) {
+    // Carry the real reason. A blanket "unavailable" once hid a maxLen that
+    // exceeded the server's traversal limit, which read as "this feature does
+    // not work here" when the feature was fine and the bound was not.
+    return {
+      paths: [],
+      native: false,
+      undecodableRows: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 
   // Distinguish "no path exists" from "the rows did not decode". Both look like
@@ -224,7 +234,7 @@ export async function multiBlastRadiusViaMSpaths(
     return { sources: [], affected: [], pathsReturned: 0, native: true };
   }
 
-  const depth = safeInt(maxDepth, 5, 1, 20);
+  const depth = safeInt(maxDepth, 5, 1, MAX_TRAVERSAL_HOPS);
   const values = known.map(cypherString).join(", ");
 
   // Must start with CALL. Traverses the materialised reverse edge outward,

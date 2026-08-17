@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, rm, mkdtemp } from "node:fs/promises";
 import { downstreamBlastRadiusQuery } from "../src/db/queries.js";
+import { safeInt, MAX_TRAVERSAL_HOPS } from "../src/util/num.js";
 import { IdRegistry } from "../src/db/id-registry.js";
 import { verifyLockfile } from "../src/remediate/verify.js";
 import { loadSnapshot, RawGraph, replaySnapshot } from "../src/ingest/snapshot.js";
@@ -29,10 +30,24 @@ afterEach(async () => {
 });
 
 describe("query interpolation cannot be broken by input", () => {
+  it("never asks for more hops than the server allows", () => {
+    // HydraDB rejects maxLen above max_traversal_hops (default 16). Clamping to
+    // a number that merely looks safe produced a rejected query that surfaced
+    // as "algo.MSpaths unavailable", blaming the feature for the bound.
+    expect(MAX_TRAVERSAL_HOPS).toBe(16);
+    for (const d of [17, 20, 100, 9999]) {
+      const bound = Number(
+        downstreamBlastRadiusQuery(1, d).match(/\*1\.\.(\d+)\]/)?.[1],
+      );
+      expect(bound).toBeLessThanOrEqual(MAX_TRAVERSAL_HOPS);
+    }
+    expect(safeInt(9999, 5, 1, MAX_TRAVERSAL_HOPS)).toBe(16);
+  });
+
   it("clamps the traversal depth into a safe integer range", () => {
     // Depth is interpolated as a literal, so a hostile or silly value must not
     // reach the query text.
-    expect(downstreamBlastRadiusQuery(1, 999)).toContain("*1..20");
+    expect(downstreamBlastRadiusQuery(1, 999)).toContain("*1..16");
     expect(downstreamBlastRadiusQuery(1, 0)).toContain("*1..1");
     expect(downstreamBlastRadiusQuery(1, -5)).toContain("*1..1");
     expect(downstreamBlastRadiusQuery(1, 3.9)).toContain("*1..3");

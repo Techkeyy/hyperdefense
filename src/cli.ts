@@ -35,7 +35,7 @@ import { findWorkingConnection, runProbes } from "./doctor/probe.js";
 import { probeRegistry } from "./doctor/registry-probe.js";
 import { writeCapabilityReport } from "./doctor/report.js";
 import { runWriteProbe } from "./doctor/write-probe.js";
-import { safeInt } from "./util/num.js";
+import { safeInt, MAX_TRAVERSAL_HOPS } from "./util/num.js";
 
 program
   .name("hyperdefense")
@@ -189,7 +189,7 @@ program
     const spinner = ora("Crawling npm...").start();
     const raw = new RawGraph();
     const visited = new Set<string>();
-    const maxDepth = safeInt(opts.depth, 2, 1, 20);
+    const maxDepth = safeInt(opts.depth, 2, 1, MAX_TRAVERSAL_HOPS);
 
     for (const pkg of opts.packages) {
       spinner.text = `Crawling ${pkg}... (${visited.size} packages seen)`;
@@ -271,7 +271,7 @@ program
     }
 
     const packages = opts.packages ?? SEED_PACKAGES.slice(0, safeInt(opts.count, 20, 1, 500));
-    const maxDepth = safeInt(opts.depth, 2, 1, 20);
+    const maxDepth = safeInt(opts.depth, 2, 1, MAX_TRAVERSAL_HOPS);
     const visited = new Set<string>();
 
     // The id registry persists the name -> compact-integer-id map so later
@@ -323,7 +323,7 @@ program
     const result = await analyzeBlastRadius(
       registry,
       packageName,
-      safeInt(opts.depth, 10, 1, 20),
+      safeInt(opts.depth, 10, 1, MAX_TRAVERSAL_HOPS),
     );
     spinner.stop();
 
@@ -411,7 +411,7 @@ program
   .action(async (packageNames: string[], opts) => {
     const registry = new IdRegistry(defaultRegistryPath());
     await registry.load();
-    const depth = safeInt(opts.depth, 5, 1, 20);
+    const depth = safeInt(opts.depth, 5, 1, MAX_TRAVERSAL_HOPS);
 
     const spinner = ora(`Traversing ${packageNames.length} sources...`).start();
     // Union of per-package traversals, NOT algo.MSpaths. The procedure returns
@@ -477,11 +477,11 @@ program
 
     const spinner = ora("algo.MSpaths...").start();
     const t0 = Date.now();
-    const { paths, native, undecodableRows } = await attackPaths(
+    const { paths, native, undecodableRows, error } = await attackPaths(
       registry,
       compromised,
       opts.to,
-      safeInt(opts.depth, 6, 1, 20),
+      safeInt(opts.depth, 6, 1, MAX_TRAVERSAL_HOPS),
       safeInt(opts.paths, 5, 1, 1000),
     );
     const ms = Date.now() - t0;
@@ -489,7 +489,11 @@ program
 
     console.log(chalk.red.bold(`\n  ATTACK PATHS\n`));
     if (!native) {
-      console.log(chalk.yellow("  algo.MSpaths unavailable here.\n"));
+      // Show what the server actually said. A blanket "unavailable" once hid a
+      // maxLen above HydraDB's traversal limit, which read as "this feature
+      // does not work here" when the feature was fine and the bound was not.
+      console.log(chalk.red("  The path query failed. HydraDB said:\n"));
+      console.log(chalk.dim(`    ${error ?? "(no message returned)"}\n`));
       await closeConnection();
       return;
     }

@@ -1,4 +1,4 @@
-import { safeInt } from "../util/num.js";
+import { safeInt, MAX_TRAVERSAL_HOPS } from "../util/num.js";
 
 /**
  * Every query here is written against HydraDB's executable Cypher subset,
@@ -165,7 +165,7 @@ export function downstreamBlastRadiusQuery(
   // (every comparison against NaN is false), which put the literal text "NaN"
   // into this query when a CLI flag was non-numeric.
   const id = safeInt(sourceId, 0, 0, Number.MAX_SAFE_INTEGER);
-  const d = safeInt(maxDepth, 5, 1, 20);
+  const d = safeInt(maxDepth, 5, 1, MAX_TRAVERSAL_HOPS);
   // Walks the materialised reverse edge OUTWARD from the compromised package,
   // because HydraDB requires the variable-length source to be the node holding
   // the literal id. See upsertReverseDependencyEdges.
