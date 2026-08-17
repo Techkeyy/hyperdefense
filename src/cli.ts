@@ -467,7 +467,7 @@ program
 
     const spinner = ora("algo.MSpaths...").start();
     const t0 = Date.now();
-    const { paths, native } = await attackPaths(
+    const { paths, native, undecodableRows } = await attackPaths(
       registry,
       compromised,
       opts.to,
@@ -484,12 +484,24 @@ program
       return;
     }
     if (paths.length === 0) {
-      console.log(
-        chalk.green(
-          `  No path from ${compromised.join(", ")} to ${opts.to.join(", ")} ` +
-            `within ${opts.depth} hops.\n`,
-        ),
-      );
+      // Do not report "no path" when the server actually returned rows that
+      // failed to decode. That is a bug, and saying "no path" would hide it.
+      if (undecodableRows > 0) {
+        console.log(
+          chalk.red(
+            `  ${undecodableRows} path row(s) returned but could not be decoded.\n` +
+              `  This is a transport bug, NOT an absence of paths. Do not read\n` +
+              `  this as "you are safe".\n`,
+          ),
+        );
+      } else {
+        console.log(
+          chalk.green(
+            `  No path from ${compromised.join(", ")} to ${opts.to.join(", ")} ` +
+              `within ${opts.depth} hops.\n`,
+          ),
+        );
+      }
       await closeConnection();
       return;
     }
@@ -581,13 +593,22 @@ program
     // directly rather than looping.
     step(3, "How does it reach me? (native algo.MSpaths)");
     const tPaths = Date.now();
-    const { paths } = await attackPaths(
+    const { paths, undecodableRows: badRows } = await attackPaths(
       registry,
       ["@tanstack/router-core", "@tanstack/history"],
       ["@tanstack/react-router"],
       6,
       5,
     );
+    if (badRows > 0) {
+      console.log(
+        chalk.red(
+          `  WARNING: ${badRows} path row(s) failed to decode. This is a bug,
+` +
+            `  not an absence of paths.`,
+        ),
+      );
+    }
     const pathsMs = Date.now() - tPaths;
     console.log(
       chalk.dim(

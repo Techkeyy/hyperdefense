@@ -60,6 +60,43 @@ export interface HttpPath {
 
 type Tagged = { type: string; value?: unknown };
 
+/**
+ * Decode a `VertexPropertyValue`, which uses a DIFFERENT serde shape from the
+ * row-level values above.
+ *
+ * Row values are adjacently tagged (`#[serde(tag="type", content="value")]`),
+ * so they arrive as `{"type":"string","value":"x"}`. `VertexPropertyValue`
+ * carries no such attribute, so serde's default externally-tagged form applies
+ * and it arrives as `{"String":"x"}` with the Rust variant name as the key.
+ *
+ * Getting this wrong is silent rather than loud: the decoder returns the raw
+ * object, every property lookup misses, and paths come back with no names, so
+ * the query looks like it simply found nothing. That is exactly what happened
+ * on the first HTTP run: attack-path reported 0 paths where Bolt found 3.
+ */
+export function decodePropertyValue(v: unknown): unknown {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== "object") return v;
+
+  const obj = v as Record<string, unknown>;
+  // Externally tagged: exactly one key, the Rust variant name.
+  if ("String" in obj) return String(obj.String ?? "");
+  if ("Integer" in obj) return Number(obj.Integer);
+  if ("SignedInteger" in obj) return Number(obj.SignedInteger);
+  if ("Bool" in obj) return Boolean(obj.Bool);
+  if ("Float" in obj) {
+    // QueryFloat is a newtype, so it may arrive bare or wrapped.
+    const f = obj.Float as unknown;
+    if (f !== null && typeof f === "object" && "0" in (f as object)) {
+      return Number((f as Record<string, unknown>)["0"]);
+    }
+    return Number(f);
+  }
+  // Adjacently tagged after all, or an unrecognised shape: fall through.
+  if (typeof obj.type === "string") return decodeValue(obj);
+  return v;
+}
+
 /** Unwrap one tagged value into a plain JS value. */
 function decodeValue(v: unknown): unknown {
   if (v === null || v === undefined) return null;
@@ -95,14 +132,19 @@ function decodeValue(v: unknown): unknown {
  * (start/end/segments with `properties`), so path handling is identical
  * regardless of transport.
  */
-function decodePath(raw: unknown): unknown {
+export function decodePath(raw: unknown): unknown {
   const p = raw as HttpPath | undefined;
   const nodes = p?.nodes ?? [];
   if (nodes.length === 0) return { start: undefined, end: undefined, segments: [] };
 
   const asNode = (n: HttpPathNode) => ({
     properties: Object.fromEntries(
-      Object.entries(n.properties ?? {}).map(([k, val]) => [k, decodeValue(val)]),
+      Object.entries(n.properties ?? {}).map(([k, val]) => [
+        k,
+        // Node properties use decodePropertyValue, NOT decodeValue: they are a
+        // different serde shape. See that function.
+        decodePropertyValue(val),
+      ]),
     ),
   });
 

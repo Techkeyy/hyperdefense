@@ -123,7 +123,13 @@ export async function attackPaths(
   targets: string[],
   maxDepth = 6,
   maxPathsPerPair = 5,
-): Promise<{ paths: AttackPath[]; native: boolean }> {
+): Promise<{
+  paths: AttackPath[];
+  native: boolean;
+  /** Rows the server returned that produced no usable chain. Non-zero means a
+   * decode problem, not an absence of paths. */
+  undecodableRows: number;
+}> {
   const knownSources = compromised.filter(
     (n) => registry.lookup("package", n) !== undefined,
   );
@@ -131,7 +137,7 @@ export async function attackPaths(
     (n) => registry.lookup("package", n) !== undefined,
   );
   if (knownSources.length === 0 || knownTargets.length === 0) {
-    return { paths: [], native: true };
+    return { paths: [], native: true, undecodableRows: 0 };
   }
 
   const depth = Math.max(1, Math.min(20, Math.floor(maxDepth)));
@@ -149,14 +155,23 @@ export async function attackPaths(
   try {
     rows = await runIsolatedQuery<{ path: DriverPath }>(query);
   } catch {
-    return { paths: [], native: false };
+    return { paths: [], native: false, undecodableRows: 0 };
   }
+
+  // Distinguish "no path exists" from "the rows did not decode". Both look like
+  // an empty result to the caller, but only one is a real answer. A transport
+  // whose path decoding silently returns nothing once cost a regression that
+  // read as a clean "0 paths", so this is checked rather than assumed.
+  let undecodable = 0;
 
   const seen = new Set<string>();
   const paths: AttackPath[] = [];
   for (const row of rows) {
     const chain = pathChain(row.path);
-    if (chain.length < 2) continue;
+    if (chain.length < 2) {
+      undecodable++;
+      continue;
+    }
     const key = chain.join(">");
     if (seen.has(key)) continue;
     seen.add(key);
@@ -169,7 +184,7 @@ export async function attackPaths(
   }
 
   paths.sort((a, b) => a.hops - b.hops || a.chain.join().localeCompare(b.chain.join()));
-  return { paths, native: true };
+  return { paths, native: true, undecodableRows: undecodable };
 }
 
 /**
