@@ -270,6 +270,9 @@ nested transitive resolutions, scoped names, and lockfile v1 and v3.
 
 ## Project status
 
+`npm run demo` runs all seven steps end to end against a live HydraDB, offline,
+on committed fixtures.
+
 Verified working against a live HydraDB:
 
 - Dev container brings up HydraDB; `doctor` connects over Bolt and measures the
@@ -280,6 +283,20 @@ Verified working against a live HydraDB:
 - Maintainer-layer lateral movement, demonstrated on real npm data.
 - Remediation artifacts and the lockfile gate, run against this repo's own
   lockfile (134 resolved packages scanned).
+- `attack-path`, using the native `algo.MSpaths` procedure, returning real
+  multi-hop chains such as
+  `@tanstack/history -> @tanstack/router-core -> @tanstack/react-router`.
+
+### One operational constraint worth knowing
+
+**Queries must not run concurrently.** Two in flight on a single Bolt connection
+intermittently corrupt the decode and surface as
+`The value of 'offset' is out of range ... Received N` from inside the driver's
+buffer read. It is timing and data dependent, so the failure appears to wander
+between commands as the graph grows, which is what made it hard to place: two
+plausible-but-wrong explanations were tried before noticing that the only
+operations ever affected were the only two using `Promise.all`. Every query path
+here is sequential.
 
 - Temporal exposure. Verified on the TanStack graph: correctly identified the
   version published inside a given window and the three consumers that could
