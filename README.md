@@ -174,7 +174,23 @@ npm run dev -- pr-comment body-parser \
 
 # Check every package in the graph against the OSV advisory feed
 npm run dev -- watch
+
+# Serve the dashboard: search the graph, see it, run the gate in a browser
+npm run web
 ```
+
+### The dashboard
+
+`npm run web` serves a read-only view of the same engine on port 5173 (open the
+forwarded port in a Codespace). It is a second view, not a second engine: every
+endpoint calls the same analysis function the CLI calls, so a number in the
+browser is the number the CLI prints.
+
+It shows the dependency-versus-maintainer contrast for any package in the graph,
+renders the two layers as a force-directed graph (the compromised package
+pinned centre, maintainer accounts labelled, because those are the nodes a
+responder acts on), traces attack paths, and runs the real CI gate against both
+committed lockfiles so a pass and a fail are visible side by side.
 
 ### Generating the fix, not just the warning
 
@@ -308,6 +324,7 @@ which disproved two of the source readings. Notably:
 | analyze | `src/analysis/*` | blast radius, lateral movement, exposure windows, typosquats |
 | remediate | `src/remediate/*` | plan, artifacts, lockfile gate |
 | probe | `src/doctor/*` | capability matrix and per-form write probe |
+| dashboard | `src/web/*` | read-only HTTP view of the same analysis, plus the graph visualisation |
 
 The crawler writes to a `GraphSink` interface, so the same code path feeds either
 HydraDB or a fixture file. There is one graph-write path, not two.

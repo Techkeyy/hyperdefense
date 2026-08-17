@@ -15,7 +15,8 @@
     "ingest": "tsx src/cli.ts ingest",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "web": "tsx src/cli.ts web"
   },
   "keywords": [
     "supply-chain",

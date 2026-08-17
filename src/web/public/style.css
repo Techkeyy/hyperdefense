@@ -1,0 +1,288 @@
+/*
+ * HyperDefense dashboard.
+ *
+ * Restraint is the point: near-black rather than #000, off-white rather than
+ * #fff, and ONE accent used only where the argument lives (the exposed count,
+ * a failing gate). Everything else is greyscale, so the accent still means
+ * something when it appears.
+ *
+ * Three type roles and no more: a serif for display, a grotesk with tabular
+ * figures for every number, and a mono eyebrow. Numbers never get the serif;
+ * that is the tell that makes data read as prose.
+ */
+
+:root {
+  --bg: #0b0b0e;
+  --bg-2: #0f0f13;
+  --surface: #16161b;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text-1: #ececee;
+  --text-2: #a6a6ae;
+  --text-3: #6c6c76;
+
+  /* Precious. A supply chain compromise is the emotional moment, so the accent
+     is the colour of the thing you do not want to see. */
+  --accent: #ff6b5a;
+  --accent-dim: rgba(255, 107, 90, 0.1);
+  --accent-border: rgba(255, 107, 90, 0.3);
+  --ok: #6ee7b7;
+
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-num: "Space Grotesk", ui-monospace, monospace;
+  --font-body: Inter, system-ui, -apple-system, sans-serif;
+  --nav-h: 66px;
+}
+
+* { box-sizing: border-box; }
+
+/*
+ * Any author rule that sets `display` silently beats the `hidden` attribute,
+ * because `hidden` is only a UA-stylesheet `display: none`. That made the
+ * "connected to HydraDB" badge render while hidden, so a failed connection
+ * displayed as "connected, 0 packages": a false claim produced by a CSS
+ * specificity accident. Elements that hide themselves must actually hide.
+ */
+[hidden] { display: none !important; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.01em;
+}
+
+.eyebrow {
+  font-family: var(--font-num);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 0 0 18px;
+}
+
+.display {
+  font-family: var(--font-serif);
+  font-weight: 300;
+  color: var(--text-1);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-size: clamp(38px, 5.4vw, 68px);
+  margin: 0 0 26px;
+}
+.display em { font-style: italic; color: var(--text-2); }
+.display.sm { font-size: clamp(30px, 3.4vw, 42px); margin-bottom: 20px; }
+
+.lede { max-width: 620px; margin: 0 0 40px; color: var(--text-2); }
+.lede.narrow { max-width: 560px; }
+
+code {
+  font-family: var(--font-num);
+  font-size: 0.88em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  color: var(--text-1);
+}
+
+.accent { color: var(--accent); }
+.dim { color: var(--text-3); }
+
+/*
+ * `.accent` is a single-class utility, so it ties on specificity with the
+ * component rules below and loses to whichever is declared later. That silently
+ * rendered the one number the whole page argues about in plain text. Stated
+ * explicitly rather than reached for `!important`, which would only move the
+ * problem to the next collision.
+ */
+.stat-value.accent,
+.metric-value.accent { color: var(--accent); }
+
+/* nav ------------------------------------------------------------------ */
+#nav {
+  position: fixed; top: 0; left: 0; right: 0; height: var(--nav-h);
+  background: rgba(11, 11, 14, 0.82);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  z-index: 50;
+}
+.nav-inner {
+  max-width: 1180px; margin: 0 auto; height: 100%;
+  padding: 0 40px; display: flex; align-items: center; justify-content: space-between;
+}
+.brand {
+  font-size: 11px; letter-spacing: 0.22em; color: var(--text-1);
+  text-decoration: none;
+}
+.nav-links { display: flex; gap: 30px; align-items: center; }
+.navlink {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-family: var(--font-num); font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-3); text-decoration: none;
+  transition: color 0.18s ease;
+}
+.navlink:hover { color: var(--text-1); }
+
+/* sections ------------------------------------------------------------- */
+section { padding: 118px 40px; border-top: 1px solid var(--border); scroll-margin-top: var(--nav-h); }
+section.alt { background: var(--bg-2); }
+section.hero { padding-top: 168px; border-top: none; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+
+/* hero ----------------------------------------------------------------- */
+.live {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 6px 14px; border-radius: 999px; margin-bottom: 30px;
+  border: 1px solid rgba(110, 231, 183, 0.28);
+  background: rgba(110, 231, 183, 0.09);
+}
+.live .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 10px var(--ok);
+}
+.live-text { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ok); }
+
+.contrast {
+  display: flex; align-items: flex-end; gap: 44px;
+  flex-wrap: wrap; margin: 8px 0 14px;
+}
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-3); }
+.stat-value { font-size: clamp(52px, 7vw, 88px); line-height: 1; color: var(--text-1); font-weight: 500; }
+.stat-unit { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+.stat-arrow {
+  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--text-3); padding-bottom: 16px;
+}
+.stat-note { font-size: 11px; color: var(--text-3); margin: 0 0 42px; }
+
+.cta-row { display: flex; gap: 14px; flex-wrap: wrap; }
+
+/* buttons: shrink on hover, never grow ---------------------------------- */
+.btn {
+  font-family: var(--font-num); font-size: 11px; letter-spacing: 0.18em;
+  text-transform: uppercase; padding: 14px 30px; border-radius: 4px;
+  cursor: pointer; border: 1px solid transparent;
+  transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.btn-primary { background: var(--text-1); color: var(--bg); }
+.btn-primary:hover { transform: scale(0.97); background: var(--accent); color: var(--bg); }
+.btn-ghost { background: transparent; color: var(--text-2); border-color: var(--border-strong); }
+.btn-ghost:hover { transform: scale(0.97); color: var(--accent); border-color: var(--accent-border); }
+
+/* search --------------------------------------------------------------- */
+.search { position: relative; max-width: 520px; margin-bottom: 34px; }
+input[type="text"] {
+  width: 100%; background: var(--surface); color: var(--text-1);
+  border: 1px solid var(--border-strong); border-radius: 4px;
+  padding: 13px 16px; font-family: var(--font-num); font-size: 13px;
+  outline: none; transition: border-color 0.18s ease;
+}
+input[type="text"]:focus { border-color: var(--accent-border); }
+input[type="text"]::placeholder { color: var(--text-3); }
+
+.suggest {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 4px; max-height: 260px; overflow-y: auto;
+}
+.suggest div {
+  padding: 9px 16px; cursor: pointer; font-family: var(--font-num); font-size: 12px;
+  color: var(--text-2); border-bottom: 1px solid var(--border);
+}
+.suggest div:last-child { border-bottom: none; }
+.suggest div:hover { background: rgba(255, 255, 255, 0.04); color: var(--text-1); }
+
+.empty { color: var(--text-3); font-size: 12px; padding: 26px 0; }
+
+/* metrics -------------------------------------------------------------- */
+.metrics { display: flex; gap: 52px; flex-wrap: wrap; margin-bottom: 34px; }
+.metric { display: flex; flex-direction: column; gap: 3px; }
+.metric-label { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-3); }
+.metric-value { font-size: 34px; line-height: 1; color: var(--text-1); font-weight: 500; }
+
+/* graph ---------------------------------------------------------------- */
+.graph-shell {
+  position: relative; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg); overflow: hidden; margin-bottom: 34px;
+}
+#graph { display: block; width: 100%; height: 460px; }
+.legend {
+  position: absolute; left: 16px; bottom: 14px; display: flex; gap: 18px;
+  flex-wrap: wrap; font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-3);
+}
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.k-source { background: var(--accent); }
+.k-dependent { background: #e8a13a; }
+.k-maintainer { background: #7aa2f7; }
+.k-lateral { background: #565660; }
+
+/* lists ---------------------------------------------------------------- */
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; }
+.list { list-style: none; margin: 0; padding: 0; font-size: 12px; columns: 2; column-gap: 26px; }
+.list li { padding: 3px 0; color: var(--text-2); break-inside: avoid; }
+.list li::before { content: "/ "; color: var(--text-3); }
+
+/* paths ---------------------------------------------------------------- */
+.path-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 30px; }
+.path-form input { max-width: 280px; }
+.path-form .arrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-3); }
+
+.path-out { display: flex; flex-direction: column; gap: 10px; }
+.chain {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 18px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-family: var(--font-num); font-size: 12.5px;
+}
+.chain .hop { color: var(--text-2); }
+.chain .hop.first { color: var(--accent); }
+.chain .hop.last { color: var(--text-1); }
+.chain .sep { color: var(--text-3); }
+.chain .len { margin-left: auto; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+
+/* gate ----------------------------------------------------------------- */
+.gate-out { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 30px; }
+.gate-card { padding: 22px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); }
+.gate-card.fail { border-color: var(--accent-border); background: var(--accent-dim); }
+.gate-card.pass { border-color: rgba(110, 231, 183, 0.26); background: rgba(110, 231, 183, 0.06); }
+.gate-verdict { font-family: var(--font-num); font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; }
+.gate-card.fail .gate-verdict { color: var(--accent); }
+.gate-card.pass .gate-verdict { color: var(--ok); }
+.gate-target { font-family: var(--font-num); font-size: 11px; color: var(--text-3); margin: 6px 0 14px; }
+.gate-row { font-family: var(--font-num); font-size: 11.5px; color: var(--text-2); padding: 2px 0; }
+
+/* how ------------------------------------------------------------------ */
+.how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-bottom: 40px; }
+.how-card { padding: 26px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-2); }
+.how-k { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-3); margin: 0 0 12px; }
+.how-b { margin: 0; font-size: 14px; color: var(--text-2); }
+.foot { font-size: 12px; color: var(--text-3); margin: 0; }
+
+/* footer --------------------------------------------------------------- */
+footer { padding: 40px; border-top: 1px solid var(--border); }
+.foot-inner { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.1em; color: var(--text-3); }
+
+@media (max-width: 860px) {
+  section { padding: 76px 24px; }
+  .nav-inner { padding: 0 24px; }
+  .nav-links { gap: 18px; }
+  .cols, .how-grid, .gate-out { grid-template-columns: 1fr; }
+  .list { columns: 1; }
+  .contrast { gap: 28px; }
+}

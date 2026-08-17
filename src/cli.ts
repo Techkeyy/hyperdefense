@@ -36,6 +36,7 @@ import { probeRegistry } from "./doctor/registry-probe.js";
 import { writeCapabilityReport } from "./doctor/report.js";
 import { runWriteProbe } from "./doctor/write-probe.js";
 import { safeInt, MAX_TRAVERSAL_HOPS } from "./util/num.js";
+import { startServer } from "./web/server.js";
 
 program
   .name("hyperdefense")
@@ -710,6 +711,30 @@ program
       ),
     );
     await closeConnection();
+  });
+
+program
+  .command("web")
+  .description("Serve the dashboard: search the graph, see it, run the gate")
+  .option("-p, --port <number>", "port to listen on", "5173")
+  .action(async (opts) => {
+    const port = safeInt(opts.port, 5173, 1, 65535);
+    await startServer(port);
+    console.log(
+      chalk.bold(`
+  HyperDefense dashboard
+`) +
+        chalk.cyan(`  http://localhost:${port}
+`) +
+        chalk.dim(
+          `  In a Codespace, open the forwarded port ${port}.
+` +
+            `  Ingest a graph first if you have not:
+` +
+            `    npm run dev -- ingest --fixture fixtures/express.json
+`,
+        ),
+    );
   });
 
 program

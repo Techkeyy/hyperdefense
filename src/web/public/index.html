@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HyperDefense</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Space+Grotesk:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<nav id="nav">
+  <div class="nav-inner">
+    <a class="brand num" href="#top">HYPERDEFENSE</a>
+    <div class="nav-links">
+      <button class="navlink" data-to="explore">Explore</button>
+      <button class="navlink" data-to="paths">Attack paths</button>
+      <button class="navlink" data-to="gate">CI gate</button>
+      <a class="navlink" href="https://github.com/Techkeyy/hyperdefense" target="_blank" rel="noreferrer">Source</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -------------------------------------------------------------- -->
+<section id="top" class="hero">
+  <div class="wrap">
+    <div id="live" class="live" hidden>
+      <span class="dot"></span>
+      <span class="num live-text">Connected to HydraDB, <span id="live-count">0</span> packages</span>
+    </div>
+
+    <p class="eyebrow">Supply chain blast radius</p>
+    <h1 class="display">
+      A dependency graph tells you<br /><em>what broke.</em>
+      A maintainer graph tells you<br /><em>what is next.</em>
+    </h1>
+    <p class="lede">
+      When an npm account is compromised, the worm republishes everything that
+      account owns. HyperDefense models dependencies, maintainer accounts, and
+      the publish timeline as three graphs in HydraDB, so the second question
+      has an answer.
+    </p>
+
+    <div class="contrast">
+      <div class="stat">
+        <span class="stat-label num">Dependency layer alone</span>
+        <span class="stat-value num" id="hero-dep">1</span>
+        <span class="stat-unit num">package</span>
+      </div>
+      <div class="stat-arrow num">reaches</div>
+      <div class="stat">
+        <span class="stat-label num">With maintainer accounts</span>
+        <span class="stat-value num accent" id="hero-total">31</span>
+        <span class="stat-unit num">packages</span>
+      </div>
+    </div>
+    <p class="stat-note num" id="hero-note">
+      body-parser, real npm data, reproducible offline
+    </p>
+
+    <div class="cta-row">
+      <button class="btn btn-primary" data-to="explore">Explore the graph</button>
+      <button class="btn btn-ghost" data-to="how">How it works</button>
+    </div>
+  </div>
+</section>
+
+<!-- EXPLORE ----------------------------------------------------------- -->
+<section id="explore" class="alt">
+  <div class="wrap">
+    <p class="eyebrow">Explore</p>
+    <h2 class="display sm">Pick a package. See everything it reaches.</h2>
+
+    <div class="search">
+      <input id="q" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Search a package in the graph" />
+      <div id="suggest" class="suggest" hidden></div>
+    </div>
+
+    <div id="explore-empty" class="empty num">
+      No graph loaded. Run <code>npm run demo -- --reset</code> first.
+    </div>
+
+    <div id="explore-body" hidden>
+      <div class="metrics">
+        <div class="metric">
+          <span class="metric-label num">Downstream</span>
+          <span class="metric-value num" id="m-down">0</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label num">Via maintainers</span>
+          <span class="metric-value num" id="m-lateral">0</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label num">Total exposed</span>
+          <span class="metric-value num accent" id="m-total">0</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label num">Accounts</span>
+          <span class="metric-value num" id="m-accounts">0</span>
+        </div>
+      </div>
+
+      <div class="graph-shell">
+        <canvas id="graph"></canvas>
+        <div class="legend num">
+          <span><i class="k-source"></i>compromised</span>
+          <span><i class="k-dependent"></i>depends on it</span>
+          <span><i class="k-maintainer"></i>maintainer account</span>
+          <span><i class="k-lateral"></i>reachable via account</span>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div>
+          <p class="eyebrow">Resolves the bad code</p>
+          <ul id="list-down" class="list num"></ul>
+        </div>
+        <div>
+          <p class="eyebrow">Reachable through a shared account</p>
+          <ul id="list-lateral" class="list num"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PATHS ------------------------------------------------------------- -->
+<section id="paths">
+  <div class="wrap">
+    <p class="eyebrow">Attack paths</p>
+    <h2 class="display sm">Not just what is exposed. How the code arrives.</h2>
+    <p class="lede narrow">
+      A set of names tells you the scale. A path tells you the intermediate
+      package that pulls the code in, which is where the link can be cut. This
+      uses HydraDB's native <code>algo.MSpaths</code> procedure.
+    </p>
+
+    <div class="path-form">
+      <input id="p-from" type="text" placeholder="Compromised package" />
+      <span class="num arrow">reaches</span>
+      <input id="p-to" type="text" placeholder="Service you care about" />
+      <button class="btn btn-ghost" id="p-go">Trace</button>
+    </div>
+
+    <div id="path-out" class="path-out"></div>
+  </div>
+</section>
+
+<!-- GATE -------------------------------------------------------------- -->
+<section id="gate" class="alt">
+  <div class="wrap">
+    <p class="eyebrow">CI gate</p>
+    <h2 class="display sm">A gate you have not seen fail is not a gate.</h2>
+    <p class="lede narrow">
+      The same check that runs in CI, against two real lockfiles: an application
+      that resolved the compromised version, and this repository's own. It reads
+      the lockfile rather than package.json, because a compromise is about the
+      version that actually resolved.
+    </p>
+    <button class="btn btn-ghost" id="g-go">Run the gate</button>
+    <div id="gate-out" class="gate-out"></div>
+  </div>
+</section>
+
+<!-- HOW --------------------------------------------------------------- -->
+<section id="how">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2 class="display sm">Three graphs, one traversal engine.</h2>
+    <div class="how-grid">
+      <div class="how-card">
+        <p class="how-k num">01 / Dependency</p>
+        <p class="how-b">Who transitively depends on the compromised package.
+          A bounded variable-length traversal over a materialised reverse edge.</p>
+      </div>
+      <div class="how-card">
+        <p class="how-k num">02 / Maintainer</p>
+        <p class="how-b">Which other packages share a publishing account. Two
+          hops through a maintainer node. The layer commercial scanners skip.</p>
+      </div>
+      <div class="how-card">
+        <p class="how-k num">03 / Temporal</p>
+        <p class="how-b">The publish timeline, so a compromise window names the
+          first suspect version and the last clean one to pin back to.</p>
+      </div>
+    </div>
+    <p class="foot num">
+      Every verdict is rule-based. No model is consulted, so the same graph and
+      inputs produce identical output on every run.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <span class="num">HyperDefense</span>
+    <span class="num dim">Built on HydraDB for Hack Hydra 2026</span>
+  </div>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
