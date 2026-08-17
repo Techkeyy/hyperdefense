@@ -116,16 +116,46 @@ UNWIND batch is one-hop only, directional (no undirected), batch input must be a
 
 ## Native path procedures: NOT reachable over Bolt in practice
 
-**Live result: unavailable.** All three procedures were rejected over Bolt with
-"query transport cannot authorize an unsupported Cypher clause". The source
-reading below describes the parser's intended surface, but the transport did not
-authorize the clause in this deployment, so HyperDefense does **not** use them
-and the "many compromised packages at once" query is served by ordinary
-variable-length traversal instead.
+**Live result: all three work.** Verified over Bolt by `debug-write` steps 9a to
+9d.
 
-An earlier draft of this document, and the README, presented these procedures as
-the project's headline HydraDB integration. That was wrong and is corrected here
-rather than deleted.
+This document previously claimed they were unreachable. That claim was wrong,
+and the test behind it was wrong: the probe used `MATCH ... CALL algo.MSpaths`.
+The dispatch in `query/opencypher.rs` is:
+
+```rust
+pub(crate) fn classify_opencypher_query_access(query: &str) -> Result<...> {
+    if super::path_procedure::is_native_path_procedure(query) {
+        return Ok(OpenCypherQueryAccess::Read);   // short-circuit
+    }
+    ...
+}
+```
+
+and `is_native_path_procedure` requires the **trimmed query to start with
+`CALL`** followed by `algo.`. A `MATCH` prefix fails that test, so the statement
+falls through to the generic clause walker, whose allowed set is
+`CREATE | MERGE | DELETE | SET | REMOVE | UNWIND | MATCH | WITH | RETURN | UNION`.
+`CALL` is not in it, hence "cannot authorize an unsupported Cypher clause". The
+error was about clause authorization, never about the procedures being missing.
+
+The lesson is worth keeping: the failing probe tested a form the source had
+already documented as invalid, and a wrong conclusion was drawn from it rather
+than the test being questioned.
+
+Working form, from HydraDB's own `bolt_server_runs_native_path_procedure_calls`
+test and confirmed here:
+
+```cypher
+CALL algo.MSpaths({sourceLabel: 'Package', sourceProperty: 'name',
+  sourceValues: ['@tanstack/router-core', '@tanstack/history'],
+  relTypes: ['DEPENDED_ON_BY'], maxLen: 5,
+  relDirection: 'outgoing', resultLimit: 10000})
+YIELD path RETURN path
+```
+
+Note `RETURN path` returns a whole path value, which the row engine forbids.
+Path procedures are a separate engine with separate projection rules.
 
 Source reading, retained for reference:
 `CALL algo.SPpaths | algo.SSpaths | algo.MSpaths({...}) YIELD path RETURN path`.
@@ -170,8 +200,9 @@ Common options: `relTypes` (required, non-empty), `relDirection`
    dedupe client-side.
 6. No `WHERE id IN $list`; drive multi-package queries through UNWIND, or issue
    one traversal per compromised package and merge client-side.
-7. The `algo.*` path procedures are not usable over this transport (see the
-   section above), so multi-source queries use plain traversal.
+7. The `algo.*` path procedures DO work, provided the statement starts with
+   `CALL algo.`. `algo.MSpaths` resolves many indexed sources in one call and is
+   what serves the "N compromised packages at once" query.
 
 ---
 

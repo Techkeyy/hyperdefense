@@ -118,6 +118,11 @@ npm run dev -- ingest --fixture fixtures/tanstack.json
 # Blast radius across the dependency and maintainer layers
 npm run dev -- blast body-parser
 
+# Many compromised packages at once, one native algo.MSpaths call.
+# --compare also runs the per-package loop to show what it replaces.
+npm run dev -- blast-many @tanstack/router-core @tanstack/history \
+  @tanstack/store --compare
+
 # Maintainer overlap and lateral-movement risk, scored
 npm run dev -- lateral body-parser
 
@@ -169,8 +174,17 @@ store cannot answer.
 | Question | HydraDB traversal |
 |----------|-------------------|
 | Downstream blast radius | `MATCH (c {id: <id>})-[:DEPENDED_ON_BY*1..N]->(x:Package) RETURN x.name` |
+| **N packages compromised at once** | **`CALL algo.MSpaths({sourceLabel:'Package', sourceProperty:'name', sourceValues:[...], relTypes:['DEPENDED_ON_BY'], ...}) YIELD path`** |
 | Lateral movement | two-hop through a shared `Maintainer` node, with `collect()` |
 | Temporal exposure | `MATCH (c {id: $id})-[:HAS_VERSION]->(v:Version) RETURN v.version, v.publishedAt` |
+
+The second row is the one that could not be built any other way. Real
+compromises are never a single package: the May 2026 TanStack worm published 84
+malicious versions across 42 packages in six minutes. Answering "what do all of
+these reach" with ordinary traversal means N round trips and a client-side
+merge. `algo.MSpaths` takes many indexed source values and resolves them inside
+the engine in a single call. `blast-many --compare` runs both and prints the
+difference.
 
 Ingestion writes nodes and edges through HydraDB's UNWIND batch mutations, which
 is the only supported path for bulk node writes.
@@ -186,11 +200,13 @@ which disproved two of the source readings. Notably:
   depends on X" therefore requires a **materialised reverse edge**, so ingestion
   writes `DEPENDED_ON_BY` alongside every `DEPENDS_ON`. This changed the data
   model.
-- The native `algo.SPpaths` / `SSpaths` / `MSpaths` procedures were **not
-  reachable** over the Bolt transport in testing ("query transport cannot
-  authorize an unsupported Cypher clause"), so they are not used. An earlier
-  draft of this README claimed otherwise; that claim was wrong and has been
-  removed.
+- The native `algo.*` path procedures **do work**, but only when the statement
+  **starts** with `CALL algo.`. A `MATCH ... CALL` prefix fails HydraDB's
+  `is_native_path_procedure` check, falls through to a generic clause walker
+  that does not allow `CALL`, and is rejected as an "unsupported Cypher clause".
+  An earlier draft of this README concluded the procedures were unavailable;
+  that was a wrong inference from a badly-formed test, and it is corrected here
+  rather than quietly dropped.
 
 ## Architecture
 

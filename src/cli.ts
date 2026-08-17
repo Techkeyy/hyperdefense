@@ -23,6 +23,7 @@ import {
 import { verifyLockfile } from "./remediate/verify.js";
 import { SEED_PACKAGES } from "./ingest/npm-registry.js";
 import { analyzeBlastRadius } from "./analysis/blast-radius.js";
+import { multiBlastRadius } from "./analysis/multi-blast.js";
 import { analyzeLateralMovement } from "./analysis/lateral-movement.js";
 import { analyzeTemporalExposure } from "./analysis/temporal-exposure.js";
 import { findTyposquats } from "./analysis/typosquat.js";
@@ -394,6 +395,92 @@ program
   });
 
 program
+  .command("blast-many <packages...>")
+  .description(
+    "Blast radius for many compromised packages in ONE native HydraDB call",
+  )
+  .option("-d, --depth <number>", "max traversal depth", "5")
+  .option(
+    "--compare",
+    "also run the per-package loop, to show what the native call replaces",
+  )
+  .action(async (packageNames: string[], opts) => {
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+    const depth = Number(opts.depth);
+
+    const spinner = ora(
+      `algo.MSpaths over ${packageNames.length} sources...`,
+    ).start();
+    const t0 = Date.now();
+    const result = await multiBlastRadius(registry, packageNames, depth);
+    const nativeMs = Date.now() - t0;
+    spinner.stop();
+
+    console.log(
+      chalk.red.bold(
+        `\n  MULTI-SOURCE BLAST RADIUS (${result.sources.length} compromised packages)\n`,
+      ),
+    );
+
+    if (!result.native) {
+      console.log(
+        chalk.yellow(
+          "  algo.MSpaths unavailable here; falling back to per-package traversal.\n",
+        ),
+      );
+    }
+
+    if (result.sources.length === 0) {
+      console.log(
+        chalk.yellow(
+          "  None of those packages are in the graph. Ingest them first.\n",
+        ),
+      );
+      await closeConnection();
+      return;
+    }
+
+    console.log(chalk.dim(`  sources: ${result.sources.join(", ")}\n`));
+    console.log(
+      `  ${chalk.red.bold(String(result.affected.length))} affected packages ` +
+        chalk.dim(`(${result.pathsReturned} paths, ${nativeMs}ms, 1 query)`),
+    );
+    for (const name of result.affected.slice(0, 40)) {
+      console.log(`    ${chalk.red("•")} ${name}`);
+    }
+    if (result.affected.length > 40) {
+      console.log(chalk.dim(`    ... and ${result.affected.length - 40} more`));
+    }
+
+    if (opts.compare) {
+      // The point of the native call is that this loop is what it replaces.
+      const t1 = Date.now();
+      const union = new Set<string>();
+      for (const pkg of result.sources) {
+        const single = await analyzeBlastRadius(registry, pkg, depth);
+        for (const d of single.downstream) union.add(d.name);
+      }
+      const loopMs = Date.now() - t1;
+      console.log(
+        chalk.bold("\n  ─────────────────────────────────────────"),
+      );
+      console.log(
+        `  native algo.MSpaths: ${chalk.green("1")} query, ${nativeMs}ms, ` +
+          `${result.affected.length} affected`,
+      );
+      console.log(
+        `  per-package loop:    ${chalk.yellow(String(result.sources.length))} queries, ` +
+          `${loopMs}ms, ${union.size} affected`,
+      );
+      console.log(chalk.bold("  ─────────────────────────────────────────"));
+    }
+
+    console.log();
+    await closeConnection();
+  });
+
+program
   .command("demo")
   .description(
     "Run the whole story on committed fixtures: offline and deterministic",
@@ -448,8 +535,41 @@ program
       ),
     );
 
-    // 3. Temporal layer.
-    step(3, "Temporal exposure window");
+    // 3. The native multi-source query. Real incidents hit dozens of packages
+    // at once, and this is the one HydraDB primitive that answers that shape
+    // directly rather than looping.
+    step(3, "All compromised packages at once (native algo.MSpaths)");
+    const compromisedSet = [
+      "@tanstack/router-core",
+      "@tanstack/react-router",
+      "@tanstack/router-plugin",
+      "@tanstack/history",
+      "@tanstack/store",
+    ];
+    const tMulti = Date.now();
+    const multi = await multiBlastRadius(registry, compromisedSet, 5);
+    const multiMs = Date.now() - tMulti;
+    console.log(
+      `  ${multi.sources.length} compromised packages resolved in ` +
+        chalk.green.bold("1 query") +
+        chalk.dim(` (${multi.pathsReturned} paths, ${multiMs}ms)`),
+    );
+    console.log(
+      `  ${chalk.red.bold(String(multi.affected.length))} distinct packages reachable`,
+    );
+    for (const n of multi.affected.slice(0, 8)) console.log(`    - ${n}`);
+    if (multi.affected.length > 8) {
+      console.log(chalk.dim(`    ... and ${multi.affected.length - 8} more`));
+    }
+    console.log(
+      chalk.dim(
+        `\n  The May 2026 TanStack worm hit 42 packages in six minutes.\n` +
+          `  This is the query shape that answers that, without a client-side loop.`,
+      ),
+    );
+
+    // 4. Temporal layer.
+    step(4, "Temporal exposure window");
     const exposure = await analyzeTemporalExposure(
       registry,
       target,
@@ -466,7 +586,7 @@ program
     }
 
     // 4. Generate the fix.
-    step(4, "Generate remediation artifacts");
+    step(5, "Generate remediation artifacts");
     const plan = buildPlan(target, blast, ["1.0.1"]);
     const blocklist = toBlocklist(plan);
     await mkdir(".hyperdefense", { recursive: true });
@@ -487,7 +607,7 @@ program
     );
 
     // 5. The gate, both outcomes. A gate only trusted if it can fail.
-    step(5, "Enforce it in CI (both outcomes)");
+    step(6, "Enforce it in CI (both outcomes)");
     const vuln = await verifyLockfile(
       ".hyperdefense/blocklist.json",
       "fixtures/vulnerable-app-lock.json",
@@ -510,7 +630,7 @@ program
     );
 
     // 6. Typosquat, on the fixture built to exercise it.
-    step(6, "Typosquat detection");
+    step(7, "Typosquat detection");
     const tsSnap = await loadSnapshot("fixtures/typosquat-demo.json");
     const tsBuffer = new IngestBuffer(registry);
     replaySnapshot(tsSnap, tsBuffer);
