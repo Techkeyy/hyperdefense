@@ -191,9 +191,22 @@ program
 
     spinner.succeed(
       `Ingested ${c.packages} packages, ${c.maintainers} maintainers, ` +
-        `${c.versions} versions, ${c.dependencyEdges} dependency edges, ` +
-        `${c.publishesEdges} publishes edges`,
+        `${c.versions} versions | edges: ${c.dependencyEdges} DEPENDS_ON, ` +
+        `${c.reverseDependencyEdges} DEPENDED_ON_BY, ` +
+        `${c.publishesEdges} PUBLISHES, ${c.hasVersionEdges} HAS_VERSION`,
     );
+    // Blast radius answers "who depends on X", so the crawl root has no
+    // dependents by construction. Point at the most-depended-on package
+    // actually present in the graph.
+    const suggestion = buffer.widestBlastTarget();
+    if (suggestion) {
+      console.log(
+        chalk.dim(
+          `\n  Blast radius answers "who depends on X", so the crawl root has\n` +
+            `  no dependents. Most-depended-on package in this graph:\n`,
+        ) + chalk.cyan(`    npm run dev -- blast ${suggestion}\n`),
+      );
+    }
     await closeConnection();
   });
 

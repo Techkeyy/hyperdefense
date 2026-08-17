@@ -46,6 +46,8 @@ export class IngestBuffer {
   private versions = new Map<string, VersionRow>();
   private dependsOn: EdgeRow[] = [];
   private dependedOnBy: EdgeRow[] = [];
+  /** (from, to) package-name pairs, kept for reporting only. */
+  private dependencyPairs: Array<[string, string]> = [];
   private publishes: EdgeRow[] = [];
   private hasVersion: EdgeRow[] = [];
 
@@ -86,6 +88,7 @@ export class IngestBuffer {
   }
 
   addDependency(fromPkg: string, toPkg: string): void {
+    this.dependencyPairs.push([fromPkg, toPkg]);
     this.dependsOn.push({
       src: int(this.registry.id("package", fromPkg)),
       dst: int(this.registry.id("package", toPkg)),
@@ -117,13 +120,37 @@ export class IngestBuffer {
     });
   }
 
+  /**
+   * A package with the most incoming DEPENDS_ON edges, i.e. the one with the
+   * widest blast radius in what was just ingested. Used to suggest a useful
+   * `blast` target, since the crawl root itself has no dependents.
+   */
+  widestBlastTarget(): string | undefined {
+    const incoming = new Map<string, number>();
+    for (const [fromPkg, toPkg] of this.dependencyPairs) {
+      void fromPkg;
+      incoming.set(toPkg, (incoming.get(toPkg) ?? 0) + 1);
+    }
+    let best: string | undefined;
+    let bestCount = 0;
+    for (const [pkg, count] of incoming) {
+      if (count > bestCount) {
+        best = pkg;
+        bestCount = count;
+      }
+    }
+    return best;
+  }
+
   counts() {
     return {
       packages: this.packages.size,
       maintainers: this.maintainers.size,
       versions: this.versions.size,
       dependencyEdges: this.dependsOn.length,
+      reverseDependencyEdges: this.dependedOnBy.length,
       publishesEdges: this.publishes.length,
+      hasVersionEdges: this.hasVersion.length,
     };
   }
 
