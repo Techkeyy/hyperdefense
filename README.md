@@ -7,147 +7,269 @@ When a package is compromised, the urgent question is not "is this one bad" but
 "what does it reach". HyperDefense answers that across three graph layers at
 once:
 
-- **Dependency graph** — which packages transitively depend on the compromised
-  one (the downstream blast radius).
-- **Maintainer graph** — which *other* packages share a maintainer with it, and
-  are therefore the worm's next hop. This is the layer the commercial scanners
-  do not model, and it is the difference between "what is already hit" and
-  "what is about to be".
-- **Temporal graph** — which versions were published inside the compromise
-  window, and which consumers resolved them while they were live.
+- **Dependency graph**: which packages transitively depend on the compromised
+  one. The downstream blast radius.
+- **Maintainer graph**: which *other* packages share a maintainer account with
+  it, and are therefore the worm's next hop. This is the layer commercial
+  scanners do not model, and it is the difference between "what is already hit"
+  and "what is about to be".
+- **Temporal graph**: which versions were published inside the compromise
+  window, and which consumers could have resolved them while they were live.
 
-The insight is that this is a graph traversal problem, not a vector similarity
-problem. No embedding captures a transitive reverse-dependency closure or a
-shared-maintainer edge. It needs a graph, and HydraDB is a graph database that
-scales to a registry-sized graph on object storage.
+This is a graph traversal problem, not a vector similarity problem. No embedding
+captures a transitive reverse-dependency closure or a shared-maintainer edge.
 
-> Status: built for [Hack Hydra](https://hackhydra.hydradb.com/) (Aug 12–20,
-> 2026), Track 2A. See [Project status](#project-status) for exactly what is
-> working today versus in progress. This README does not claim more than the
-> code does.
+Built for [Hack Hydra](https://hackhydra.hydradb.com/) (Aug 12 to 20, 2026),
+Track 2 Option A.
 
-## Why HydraDB, specifically
+## The result that makes the case
 
-HyperDefense is not a graph library bolted onto a relational store. Every core
-question is a HydraDB traversal:
-
-- Downstream blast radius is a bounded reverse variable-length path:
-  `MATCH (c {id: $id})<-[:DEPENDS_ON*1..N]-(x) RETURN x.id`.
-- Lateral movement is a two-hop traversal through a shared maintainer node.
-- The "many compromised packages at once" query maps onto HydraDB's native
-  `algo.MSpaths` path procedure, which resolves many indexed sources in one
-  call instead of fanning out from the client.
-
-The query layer is written against HydraDB's real executable Cypher subset,
-documented in [docs/HYDRADB-CYPHER-SPEC.md](docs/HYDRADB-CYPHER-SPEC.md) — read
-from the engine source, not assumed from the Cypher standard.
-
-## Architecture
+Real npm data, `body-parser` treated as compromised:
 
 ```
- npm registry ──► ingest ──► HydraDB (3 graph layers) ──► analysis ──► CLI / report
-                  (fetch)     dependency │ maintainer │ temporal
+  BLAST RADIUS: body-parser
+
+  Downstream dependents (1):
+    - express
+
+  Lateral movement risk (shared maintainers):
+    @dougwilson also publishes: accepts, bytes, content-disposition,
+      content-type, cookie, cookie-signature, depd, encodeurl, escape-html,
+      etag, finalhandler, forwarded, fresh, http-errors, media-typer,
+      mime-types, negotiator, on-finished, parseurl, path-to-regexp,
+      proxy-addr, range-parser, raw-body, router, send, serve-static,
+      statuses, type-is, vary
+    @wesleytodd also publishes: accepts, content-disposition, express,
+      finalhandler, iconv-lite, mime-types, negotiator, router, send,
+      serve-static, type-is
+    ...
+
+  Total affected: 31 packages
 ```
 
-| Stage | Location | Job |
-|-------|----------|-----|
-| fetch | `src/ingest/npm-registry.ts` | pull package, version, maintainer, timestamp data from the public npm registry |
-| load  | `src/ingest/dependency-graph.ts` | UNWIND-batch nodes and edges into HydraDB |
-| traverse | `src/db/queries.ts` | the three graph-layer queries |
-| analyze | `src/analysis/*` | rank blast radius, score lateral movement, compute exposure windows, find typosquats |
-| report | `src/cli.ts` | render results, write the capability matrix |
+A dependency-only scanner reports **1** affected package. Modelling maintainer
+accounts as graph nodes reveals **31**. One compromised maintainer account is all
+it takes, which is exactly how the Shai-Hulud and TanStack campaigns propagated:
+the worm queried npm for everything a compromised account published, then
+republished it.
+
+The offline TanStack fixture shows the same shape with the numbers side by side:
+
+```
+  ─────────────────────────────────────────
+  Dependency layer alone:   3 packages
+  + maintainer layer:       10 packages
+  7 packages a dependency-only scanner misses (3.3x)
+  ─────────────────────────────────────────
+```
 
 ## Quick start
 
 The whole stack runs in a dev container, so HydraDB comes up as a sibling
-service with no local install.
+service with nothing to install locally.
 
 ### GitHub Codespaces (recommended)
 
-1. **Code ▸ Codespaces ▸ Create codespace on main.** The dev container starts
+1. **Code > Codespaces > Create codespace on main.** The dev container starts
    HydraDB and runs `npm install` automatically.
-2. In the terminal:
+2. Confirm the stack is live:
 
    ```bash
    npm run doctor
    ```
 
-   This probes the live HydraDB and the npm registry and writes a measured
-   capability matrix to `docs/CAPABILITIES.md`. It is both the health check and
-   the proof the graph engine is reachable.
+   This probes the running HydraDB and the npm registry, then writes a measured
+   capability matrix to `docs/CAPABILITIES.md`.
+
+3. Run the deterministic demo, no network needed:
+
+   ```bash
+   npm run dev -- ingest --fixture fixtures/tanstack.json
+   npm run dev -- blast @tanstack/router-core
+   ```
 
 ### Local (VS Code Dev Containers)
 
 Requires Docker and the Dev Containers extension. Open the folder, "Reopen in
-Container", then `npm run doctor`. The dev container definition is in
+Container", then `npm run doctor`. Definition is in
 [`.devcontainer/`](.devcontainer).
 
 ## Usage
 
 ```bash
-# Verify the stack (HydraDB + npm registry) and write the capability matrix
+# Health check: probe HydraDB + npm, write the capability matrix
 npm run doctor
 
-# Ingest packages and their transitive dependencies into HydraDB
-npm run dev -- ingest --packages express react --depth 3
+# Per-form write/read probe with HydraDB's real error per step
+npm run dev -- debug-write
 
-# Blast radius of a compromised package across all three graph layers
-npm run dev -- blast @tanstack/router
+# Capture npm once into a replayable fixture (no HydraDB required)
+npm run dev -- snapshot --packages @tanstack/react-router --depth 2 \
+  --out fixtures/my-scenario.json
 
-# Maintainer overlap and lateral-movement risk
-npm run dev -- lateral @tanstack/router
+# Load a graph: live from npm, or offline from a fixture
+npm run dev -- ingest --packages express --depth 2
+npm run dev -- ingest --fixture fixtures/tanstack.json
+
+# Blast radius across the dependency and maintainer layers
+npm run dev -- blast body-parser
+
+# Maintainer overlap and lateral-movement risk, scored
+npm run dev -- lateral body-parser
 
 # Temporal exposure window
-npm run dev -- exposure @tanstack/router --from 2026-05-11T09:00:00Z --to 2026-05-12T14:00:00Z
+npm run dev -- exposure body-parser \
+  --from 2026-05-11T09:00:00Z --to 2026-05-12T14:00:00Z
 
 # Typosquat candidates
 npm run dev -- typosquat express
+
+# Generate the fix: blocklist, npm overrides, CI gate workflow
+npm run dev -- remediate body-parser --bad-versions 1.20.3 --out .hyperdefense
+
+# Enforce it. Exits 1 if a blocked version resolved, failing the CI check
+npm run dev -- verify --blocklist .hyperdefense/blocklist.json
 ```
+
+### Generating the fix, not just the warning
+
+`remediate` turns a blast radius into artifacts you can apply:
+
+- `blocklist.json`, the machine-readable policy `verify` enforces
+- an npm `overrides` block to pin a safe version
+- `supply-chain-gate.yml`, a GitHub Actions job that fails the build
+
+`verify` reads the **lockfile**, not `package.json`, because a compromise is
+about the version that actually resolved, not the declared range. It exits 1 on
+a violation so the PR check fails, and exit 2 for "could not run" so a broken
+gate is never mistaken for a pass.
+
+Two deliberate judgements:
+
+- Shared-maintainer packages go to `review`, not `blocked`. Hard-blocking a
+  maintainer's entire portfolio on suspicion would break builds for packages
+  nobody touched, and a gate that cries wolf gets switched off.
+- No safe version is ever invented. Without `--safe-version` the override is
+  skipped and the gap stated. A pin that looks authoritative but is not would
+  get applied without being read.
+
+Everything here is rule-based. No model is consulted, so output is
+byte-identical run to run and safe to gate a pipeline on.
+
+## How HydraDB is used
+
+HydraDB is the graph store and the traversal engine. There is no product without
+it: the entire value is graph-native reachability that a vector or relational
+store cannot answer.
+
+| Question | HydraDB traversal |
+|----------|-------------------|
+| Downstream blast radius | `MATCH (c {id: <id>})-[:DEPENDED_ON_BY*1..N]->(x:Package) RETURN x.name` |
+| Lateral movement | two-hop through a shared `Maintainer` node, with `collect()` |
+| Temporal exposure | `MATCH (c {id: $id})-[:HAS_VERSION]->(v:Version) RETURN v.version, v.publishedAt` |
+
+Ingestion writes nodes and edges through HydraDB's UNWIND batch mutations, which
+is the only supported path for bulk node writes.
+
+The query layer is written against HydraDB's real executable Cypher subset,
+documented in [docs/HYDRADB-CYPHER-SPEC.md](docs/HYDRADB-CYPHER-SPEC.md). That
+document was read from the engine source and then **corrected by live testing**,
+which disproved two of the source readings. Notably:
+
+- Variable-length traversal is **outbound only**, and the source node must carry
+  a literal id. `(c {id: N})<-[:DEPENDS_ON*1..N]-(x)` is always rejected, because
+  in an inbound pattern the source is the far, unidentified node. Answering "who
+  depends on X" therefore requires a **materialised reverse edge**, so ingestion
+  writes `DEPENDED_ON_BY` alongside every `DEPENDS_ON`. This changed the data
+  model.
+- The native `algo.SPpaths` / `SSpaths` / `MSpaths` procedures were **not
+  reachable** over the Bolt transport in testing ("query transport cannot
+  authorize an unsupported Cypher clause"), so they are not used. An earlier
+  draft of this README claimed otherwise; that claim was wrong and has been
+  removed.
+
+## Architecture
+
+```
+ npm registry ──► crawl ──► GraphSink ──► HydraDB (3 layers) ──► analysis ──► CLI
+                              │            dependency                          │
+                              └─► fixture  maintainer                          └─► remediation
+                                  (offline) temporal                               artifacts + CI gate
+```
+
+| Stage | Location | Job |
+|-------|----------|-----|
+| fetch | `src/ingest/npm-registry.ts` | pull package, version, maintainer, timestamp data |
+| capture | `src/ingest/snapshot.ts` | collect a crawl as a replayable fixture |
+| load | `src/ingest/dependency-graph.ts` | UNWIND-batch nodes and edges into HydraDB |
+| identity | `src/db/id-registry.ts` | compact integer node ids, persisted so separate processes agree |
+| traverse | `src/db/queries.ts` | the graph-layer queries |
+| analyze | `src/analysis/*` | blast radius, lateral movement, exposure windows, typosquats |
+| remediate | `src/remediate/*` | plan, artifacts, lockfile gate |
+| probe | `src/doctor/*` | capability matrix and per-form write probe |
+
+The crawler writes to a `GraphSink` interface, so the same code path feeds either
+HydraDB or a fixture file. There is one graph-write path, not two.
 
 ## Development
 
 ```bash
 npm run lint    # type-check
-npm test        # unit tests (pure logic: typosquat distance, payload shape)
+npm test        # unit tests
 npm run build   # compile to dist/
 ```
 
-Pure logic (distance metrics, payload parsing, scoring) is kept separate from
-I/O so it is unit-testable without a database or a network.
+Pure logic (scoring, distance metrics, plan building, lockfile parsing) is kept
+separate from I/O so it is unit-testable with no database and no network.
+
+42 tests currently pass, covering the id registry's persistence round trip,
+snapshot replay fidelity, remediation classification, and the CI gate against
+nested transitive resolutions, scoped names, and lockfile v1 and v3.
 
 ## Project status
 
-Honest state, updated as the build progresses.
+Verified working against a live HydraDB:
 
-**Working and verified:**
+- Dev container brings up HydraDB; `doctor` connects over Bolt and measures the
+  executable Cypher subset.
+- All write forms: UNWIND vertex upsert, same-label and cross-label edge upsert.
+- Ingest from live npm and from a committed fixture.
+- Dependency-layer blast radius via the materialised reverse edge.
+- Maintainer-layer lateral movement, demonstrated on real npm data.
+- Remediation artifacts and the lockfile gate, run against this repo's own
+  lockfile (134 resolved packages scanned).
 
-- Dev container brings up HydraDB; `doctor` connects over Bolt and confirms the
-  executable Cypher subset live.
-- npm registry ingestion path verified against the live registry (payload shape
-  asserted against `express`: dependencies, maintainers, publish timestamps all
-  present).
-- Pure-logic analysis (typosquat distance, payload validation) with passing
-  tests.
-- HydraDB Cypher subset fully mapped from engine source
-  ([spec](docs/HYDRADB-CYPHER-SPEC.md)).
+Not yet exercised against a live graph:
 
-**In progress:**
+- The temporal exposure query. The code is written and the `HAS_VERSION` edges
+  are ingested, but the `exposure` command has not been run end to end, so it is
+  not claimed as working.
+- Typosquat detection is pure logic with passing unit tests, but has not been
+  run against an ingested graph.
 
-- Rewriting the graph load and traversal layer against the verified spec. The
-  first draft of `src/db/queries.ts` was written before the engine's real
-  constraints were known (integer node identity, no `DISTINCT` aggregates,
-  UNWIND-only batch writes) and is being rebuilt.
-- TanStack compromise fixture for an offline, deterministic demo.
-- Remediation output (lockfile patch, CI block rule) and a GitHub Action
-  surface.
+Known scope limits:
 
-## How HydraDB is used
+- npm only. PyPI is out of scope.
+- The graph is a seeded subgraph, not the full registry.
+- Analyses a known compromise; it does not discover new ones.
 
-HydraDB is the graph store and traversal engine. Ingestion writes nodes and
-edges through HydraDB's UNWIND batch mutations; every analytical question is a
-Cypher traversal or a native `algo.*` path procedure against a HydraDB snapshot.
-Remove HydraDB and there is no product: the whole value is graph-native
-reachability that a vector or relational store cannot answer.
+## Attribution
+
+- [HydraDB](https://github.com/hydra-db/hydradb), the graph database this is
+  built on (AGPL-3.0).
+- [neo4j-driver](https://www.npmjs.com/package/neo4j-driver) for Bolt
+  connectivity, since HydraDB is Bolt-compatible.
+- [commander](https://www.npmjs.com/package/commander),
+  [chalk](https://www.npmjs.com/package/chalk),
+  [ora](https://www.npmjs.com/package/ora) for the CLI.
+- [vitest](https://vitest.dev/), [tsx](https://tsx.is/),
+  [typescript](https://www.typescriptlang.org/) for development.
+- Package data from the public
+  [npm registry API](https://registry.npmjs.org/). `fixtures/tanstack.json` is
+  real registry data captured with `hyperdefense snapshot`; it records its own
+  capture time and provenance.
+- Incident details referenced in comments and docs come from public reporting on
+  the September 2025 Shai-Hulud worm and the May 2026 TanStack compromise.
 
 ## License
 

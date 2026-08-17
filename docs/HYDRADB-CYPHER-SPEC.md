@@ -29,7 +29,7 @@ The parser routes each statement to one of two engines. A statement that fits
 neither is rejected. This is why single-statement Cypher that "should work" does
 not: it has to match one of these shapes exactly.
 
-### 1. Row engine — reads
+### 1. Row engine: reads
 
 Shape: `MATCH ... [WITH ...] RETURN ...`. Rules, each verified in source:
 
@@ -58,7 +58,7 @@ Shape: `MATCH ... [WITH ...] RETURN ...`. Rules, each verified in source:
   parameter is only supported as an UNWIND input"), so `WHERE x IN $list` is out;
   feed lists through UNWIND instead.
 
-### 2. Mutation engine — writes
+### 2. Mutation engine: writes
 
 A write statement is exactly one of these, with no trailing clauses:
 
@@ -75,7 +75,7 @@ created via the UNWIND vertex-upsert form below.
 **b. `MATCH ... SET/DELETE/REMOVE`** for updates on already-matched nodes/edges.
 No OPTIONAL MATCH, no hints, cannot continue with RETURN/WITH after the write.
 
-**c. UNWIND batches** — the bulk ingestion path, and the one HyperDefense uses.
+**c. UNWIND batches**, the bulk ingestion path, and the one HyperDefense uses.
 Four accepted forms:
 
 Vertex upsert (the node writer). MERGE matches on id only; labels and properties
@@ -89,7 +89,7 @@ SET n:Package, n.name = row.name, n.publishedAt = row.publishedAt
 
 The engine has two built-in merge policies usable here:
 - an **update-if-newer guard** (a reserved SET marker) so a later publish
-  timestamp wins — directly useful for the temporal layer
+  timestamp wins, directly useful for the temporal layer
 - a **create-only marker** so a field is written once and never overwritten
 
 Edge upsert (the relationship writer), one fixed type, no properties on the rel,
@@ -100,16 +100,37 @@ UNWIND $rows AS row
 MERGE (a {id: row.src})-[:DEPENDS_ON]->(b {id: row.dst})
 ```
 
+**This form did not execute.** The shape that actually works, taken from
+HydraDB's own bolt client tests, matches both endpoints by label and id first,
+then merges a relationship carrying its own integer id:
+
+```cypher
+UNWIND $rows AS row
+MATCH (s:Package {id: row.src}), (d:Package {id: row.dst})
+MERGE (s)-[:DEPENDS_ON {id: row.eid}]->(d)
+```
+
 Also available: UNWIND MATCH ... CREATE (edge), UNWIND MATCH ... DELETE. Every
 UNWIND batch is one-hop only, directional (no undirected), batch input must be a
 `$parameter`, node patterns carry no labels and only the `id` property.
 
-## Native path procedures — reachable, but statement must START with CALL
+## Native path procedures: NOT reachable over Bolt in practice
 
+**Live result: unavailable.** All three procedures were rejected over Bolt with
+"query transport cannot authorize an unsupported Cypher clause". The source
+reading below describes the parser's intended surface, but the transport did not
+authorize the clause in this deployment, so HyperDefense does **not** use them
+and the "many compromised packages at once" query is served by ordinary
+variable-length traversal instead.
+
+An earlier draft of this document, and the README, presented these procedures as
+the project's headline HydraDB integration. That was wrong and is corrected here
+rather than deleted.
+
+Source reading, retained for reference:
 `CALL algo.SPpaths | algo.SSpaths | algo.MSpaths({...}) YIELD path RETURN path`.
-A dedicated parser handles these; the statement must begin with `CALL` (you
-cannot prefix `MATCH ... CALL`, which is what "query transport cannot authorize
-an unsupported Cypher clause" meant on the first probe).
+A dedicated parser handles these and the statement must begin with `CALL`
+(`MATCH ... CALL` is not accepted).
 
 Selectors are **indexed values, not bound nodes**:
 
@@ -147,11 +168,10 @@ Common options: `relTypes` (required, non-empty), `relDirection`
    See "Corrections from live testing" below: the inbound form does not work.
 5. Maintainer overlap: project `collect(other.name)` grouped per maintainer;
    dedupe client-side.
-6. No `WHERE id IN $list`; drive multi-package queries through UNWIND or the
-   MSpaths selector form.
-7. algo.MSpaths is available for the "many compromised packages at once" query
-   and is the strongest HydraDB-native story, if an index on the selector
-   property exists.
+6. No `WHERE id IN $list`; drive multi-package queries through UNWIND, or issue
+   one traversal per compromised package and merge client-side.
+7. The `algo.*` path procedures are not usable over this transport (see the
+   section above), so multi-source queries use plain traversal.
 
 ---
 
