@@ -5,6 +5,7 @@ import ora from "ora";
 import { closeConnection } from "./db/connection.js";
 import { initSchema } from "./db/schema.js";
 import { IngestBuffer, crawlPackage } from "./ingest/dependency-graph.js";
+import { IdRegistry, defaultRegistryPath } from "./db/id-registry.js";
 import { SEED_PACKAGES } from "./ingest/npm-registry.js";
 import { analyzeBlastRadius } from "./analysis/blast-radius.js";
 import { analyzeLateralMovement } from "./analysis/lateral-movement.js";
@@ -170,7 +171,12 @@ program
     const packages = opts.packages ?? SEED_PACKAGES.slice(0, Number(opts.count));
     const maxDepth = Number(opts.depth);
     const visited = new Set<string>();
-    const buffer = new IngestBuffer();
+
+    // The id registry persists the name -> compact-integer-id map so later
+    // analysis commands (separate processes) can resolve the same ids.
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+    const buffer = new IngestBuffer(registry);
 
     // Crawl (network) into the buffer, then flush (graph write) once.
     for (const pkg of packages) {
@@ -181,6 +187,7 @@ program
     const c = buffer.counts();
     spinner.text = `Writing ${c.packages} packages, ${c.maintainers} maintainers, ${c.dependencyEdges} dependency edges to HydraDB...`;
     await buffer.flush();
+    await registry.save();
 
     spinner.succeed(
       `Ingested ${c.packages} packages, ${c.maintainers} maintainers, ` +
@@ -195,8 +202,21 @@ program
   .description("Analyze blast radius of a compromised package")
   .action(async (packageName) => {
     const spinner = ora(`Analyzing blast radius for ${packageName}...`).start();
-    const result = await analyzeBlastRadius(packageName);
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+    const result = await analyzeBlastRadius(registry, packageName);
     spinner.stop();
+
+    if (!result.found) {
+      console.log(
+        chalk.yellow(
+          `\n  "${packageName}" is not in the graph. Ingest it first:\n` +
+            `    npm run dev -- ingest --packages ${packageName}\n`,
+        ),
+      );
+      await closeConnection();
+      return;
+    }
 
     console.log(
       chalk.red.bold(`\n  BLAST RADIUS: ${packageName}\n`),
@@ -247,7 +267,9 @@ program
   .description("Analyze maintainer overlap and lateral movement risk")
   .action(async (packageName) => {
     const spinner = ora("Analyzing maintainer overlap...").start();
-    const risks = await analyzeLateralMovement(packageName);
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+    const risks = await analyzeLateralMovement(registry, packageName);
     spinner.stop();
 
     console.log(
@@ -287,7 +309,10 @@ program
   .requiredOption("--to <datetime>", "detection timestamp (ISO 8601)")
   .action(async (packageName, opts) => {
     const spinner = ora("Analyzing temporal exposure...").start();
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
     const result = await analyzeTemporalExposure(
+      registry,
       packageName,
       opts.from,
       opts.to,

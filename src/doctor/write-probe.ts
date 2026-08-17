@@ -21,11 +21,15 @@ export interface WriteProbeResult {
 export async function runWriteProbe(): Promise<WriteProbeResult[]> {
   const results: WriteProbeResult[] = [];
 
-  // Fixed integer ids in a private range so this never touches real data.
-  const A = int(900000001);
-  const B = int(900000002);
-  const V = int(900000003);
-  const E = int(900000004);
+  // Small integer ids. HydraDB uses the vertex id as a GraphBLAS matrix index,
+  // so ids must be compact; a large id makes the write fail with an internal
+  // execution error. These tiny values both stay clear of real data (real ids
+  // start at 1 and climb, but this graph is disposable) and confirm that
+  // compact ids are the fix.
+  const A = int(9001);
+  const B = int(9002);
+  const V = int(9003);
+  const E = int(9004);
 
   const steps: Array<{ step: string; query: string; params: Record<string, unknown> }> = [
     {
@@ -70,10 +74,11 @@ export async function runWriteProbe(): Promise<WriteProbeResult[]> {
       params: { id: A },
     },
     {
-      step: "8. traversal: reverse var-length *1..2",
+      step: "8. traversal: reverse var-length *1..2 (literal source id)",
+      // Variable-length MATCH requires a fixed (literal) source id, not a param.
       query:
-        "MATCH (c {id: $id})<-[:DEPENDS_ON*1..2]-(x:Package) RETURN x.id AS id, x.name AS name",
-      params: { id: B },
+        "MATCH (c {id: 9002})<-[:DEPENDS_ON*1..2]-(x:Package) RETURN x.id AS id, x.name AS name",
+      params: {},
     },
     {
       step: "9. two-hop maintainer pattern with collect()",

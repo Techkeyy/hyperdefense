@@ -1,7 +1,7 @@
 import neo4j from "neo4j-driver";
 import { runQuery } from "../db/connection.js";
 import { QUERIES } from "../db/queries.js";
-import { nodeId } from "../db/node-id.js";
+import type { IdRegistry } from "../db/id-registry.js";
 
 export interface MaintainerRisk {
   maintainer: string;
@@ -22,9 +22,11 @@ function asString(v: unknown): string {
  * account (a bigger blast if that account falls).
  */
 export async function analyzeLateralMovement(
+  registry: IdRegistry,
   packageName: string,
 ): Promise<MaintainerRisk[]> {
-  const id = nodeId("package", packageName);
+  const id = registry.lookup("package", packageName);
+  if (id === undefined) return [];
 
   const rows = await runQuery<{ maintainer: string; otherNames: string[] }>(
     QUERIES.sharedMaintainerRisk,

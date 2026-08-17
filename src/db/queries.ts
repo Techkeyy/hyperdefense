@@ -87,11 +87,12 @@ export const QUERIES = {
   // Anchor on the compromised node by integer id, walk DEPENDS_ON backwards
   // (a package that depends on the compromised one is downstream of it).
   // De-duplication of packages reachable by multiple paths happens client-side.
-
-  downstreamBlastRadius: `
-    MATCH (c {id: $id})<-[:DEPENDS_ON*1..$maxDepth]-(affected:Package)
-    RETURN affected.id AS id, affected.name AS name
-  `,
+  //
+  // Both the source id and the depth are interpolated as literals: HydraDB
+  // rejects a variable-length MATCH whose source id is a parameter
+  // ("variable-length MATCH requires a fixed source id"), and the *1..N bound
+  // must also be a literal. Fixed-length patterns still accept $id params.
+  // See downstreamBlastRadiusQuery() for the safe interpolation.
 
   // -- Lateral movement: maintainer layer ----------------------------------
   //
@@ -132,12 +133,19 @@ export const QUERIES = {
 } as const;
 
 /**
- * HydraDB parses `*1..N` with a literal bound, so the depth is interpolated
- * into the query text rather than passed as a parameter. The value is clamped
- * and integer-checked here so nothing but a small non-negative integer ever
- * reaches the query string.
+ * Builds the downstream blast-radius query with the source id and depth bound
+ * interpolated as literals (HydraDB requires both for a variable-length MATCH).
+ * Both inputs are integer-checked and clamped so nothing but a small
+ * non-negative integer ever reaches the query text.
  */
-export function downstreamBlastRadiusQuery(maxDepth: number): string {
+export function downstreamBlastRadiusQuery(
+  sourceId: number,
+  maxDepth: number,
+): string {
+  const id = Math.max(0, Math.floor(sourceId));
   const d = Math.max(1, Math.min(20, Math.floor(maxDepth)));
-  return QUERIES.downstreamBlastRadius.replace("$maxDepth", String(d));
+  return `
+    MATCH (c {id: ${id}})<-[:DEPENDS_ON*1..${d}]-(affected:Package)
+    RETURN affected.id AS id, affected.name AS name
+  `;
 }

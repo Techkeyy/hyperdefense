@@ -7,3 +7,4 @@ hydradb-data/
 coverage/
 .DS_Store
 Thumbs.db
+.hyperdefense/

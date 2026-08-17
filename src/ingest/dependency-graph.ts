@@ -1,7 +1,7 @@
 import neo4j from "neo4j-driver";
 import { runQuery } from "../db/connection.js";
 import { QUERIES } from "../db/queries.js";
-import { nodeId, edgeId } from "../db/node-id.js";
+import { IdRegistry } from "../db/id-registry.js";
 import { fetchPackage, type NpmPackageData } from "./npm-registry.js";
 
 /**
@@ -48,8 +48,10 @@ export class IngestBuffer {
   private publishes: EdgeRow[] = [];
   private hasVersion: EdgeRow[] = [];
 
+  constructor(private readonly registry: IdRegistry) {}
+
   addPackage(name: string, description = "", latestVersion = ""): number {
-    const id = nodeId("package", name);
+    const id = this.registry.id("package", name);
     // Keep the richest record: a package first seen as a bare dependency may
     // later be fetched with full metadata.
     const existing = this.packages.get(name);
@@ -65,14 +67,14 @@ export class IngestBuffer {
   }
 
   addMaintainer(username: string, email = ""): number {
-    const id = nodeId("maintainer", username);
+    const id = this.registry.id("maintainer", username);
     this.maintainers.set(username, { id: int(id), username, email });
     return id;
   }
 
   addVersion(pkg: string, version: string, publishedAt: string): number {
     const key = `${pkg}@${version}`;
-    const id = nodeId("version", key);
+    const id = this.registry.id("version", key);
     this.versions.set(key, {
       id: int(id),
       package: pkg,
@@ -84,25 +86,25 @@ export class IngestBuffer {
 
   addDependency(fromPkg: string, toPkg: string): void {
     this.dependsOn.push({
-      src: int(nodeId("package", fromPkg)),
-      dst: int(nodeId("package", toPkg)),
-      eid: int(edgeId("DEPENDS_ON", fromPkg, toPkg)),
+      src: int(this.registry.id("package", fromPkg)),
+      dst: int(this.registry.id("package", toPkg)),
+      eid: int(this.registry.edgeId("DEPENDS_ON", fromPkg, toPkg)),
     });
   }
 
   addPublishes(username: string, pkg: string): void {
     this.publishes.push({
-      src: int(nodeId("maintainer", username)),
-      dst: int(nodeId("package", pkg)),
-      eid: int(edgeId("PUBLISHES", username, pkg)),
+      src: int(this.registry.id("maintainer", username)),
+      dst: int(this.registry.id("package", pkg)),
+      eid: int(this.registry.edgeId("PUBLISHES", username, pkg)),
     });
   }
 
   addHasVersion(pkg: string, versionKey: string): void {
     this.hasVersion.push({
-      src: int(nodeId("package", pkg)),
-      dst: int(nodeId("version", versionKey)),
-      eid: int(edgeId("HAS_VERSION", pkg, versionKey)),
+      src: int(this.registry.id("package", pkg)),
+      dst: int(this.registry.id("version", versionKey)),
+      eid: int(this.registry.edgeId("HAS_VERSION", pkg, versionKey)),
     });
   }
 

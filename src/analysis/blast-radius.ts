@@ -1,9 +1,10 @@
 import neo4j from "neo4j-driver";
 import { runQuery } from "../db/connection.js";
 import { QUERIES, downstreamBlastRadiusQuery } from "../db/queries.js";
-import { nodeId } from "../db/node-id.js";
+import type { IdRegistry } from "../db/id-registry.js";
 
 export interface BlastRadiusResult {
+  found: boolean;
   downstream: Array<{ name: string }>;
   lateralMovement: Array<{ maintainer: string; atRiskPackages: string[] }>;
   totalAffected: number;
@@ -11,21 +12,25 @@ export interface BlastRadiusResult {
 
 const int = neo4j.int;
 
-/** Rows come back with names as strings; collect() columns come back as arrays. */
 function asString(v: unknown): string {
   return typeof v === "string" ? v : String(v ?? "");
 }
 
 export async function analyzeBlastRadius(
+  registry: IdRegistry,
   packageName: string,
   maxDepth = 10,
 ): Promise<BlastRadiusResult> {
-  const id = nodeId("package", packageName);
+  const id = registry.lookup("package", packageName);
+  if (id === undefined) {
+    return { found: false, downstream: [], lateralMovement: [], totalAffected: 0 };
+  }
 
   const [downstream, lateral] = await Promise.all([
-    runQuery<{ name: string }>(downstreamBlastRadiusQuery(maxDepth), {
-      id: int(id),
-    }),
+    // Variable-length source id must be a literal, so this query is built with
+    // the id interpolated rather than passed as a parameter.
+    runQuery<{ name: string }>(downstreamBlastRadiusQuery(id, maxDepth)),
+    // Fixed-length pattern: $id parameter is accepted.
     runQuery<{ maintainer: string; otherNames: string[] }>(
       QUERIES.sharedMaintainerRisk,
       { id: int(id) },
@@ -34,8 +39,6 @@ export async function analyzeBlastRadius(
 
   const affected = new Set<string>();
 
-  // De-duplicate downstream packages reachable by multiple paths (HydraDB has
-  // no DISTINCT aggregate, so this is done here).
   const downstreamSeen = new Set<string>();
   const downstreamList: Array<{ name: string }> = [];
   for (const row of downstream) {
@@ -46,7 +49,6 @@ export async function analyzeBlastRadius(
     downstreamList.push({ name });
   }
 
-  // Group maintainer overlap per maintainer, deduping their package lists.
   const byMaintainer = new Map<string, Set<string>>();
   for (const row of lateral) {
     const maintainer = asString(row.maintainer);
@@ -70,6 +72,7 @@ export async function analyzeBlastRadius(
     }));
 
   return {
+    found: true,
     downstream: downstreamList,
     lateralMovement: lateralList,
     totalAffected: affected.size,

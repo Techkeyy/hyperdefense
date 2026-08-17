@@ -1,7 +1,7 @@
 import neo4j from "neo4j-driver";
 import { runQuery } from "../db/connection.js";
 import { QUERIES } from "../db/queries.js";
-import { nodeId } from "../db/node-id.js";
+import type { IdRegistry } from "../db/id-registry.js";
 
 export interface ExposureWindow {
   packageName: string;
@@ -27,11 +27,24 @@ function asString(v: unknown): string {
  * surface HydraDB supports.
  */
 export async function analyzeTemporalExposure(
+  registry: IdRegistry,
   packageName: string,
   compromisedAt: string,
   detectedAt: string,
 ): Promise<ExposureWindow> {
-  const id = nodeId("package", packageName);
+  const id = registry.lookup("package", packageName);
+  if (id === undefined) {
+    const start = new Date(compromisedAt).getTime();
+    const end = new Date(detectedAt).getTime();
+    return {
+      packageName,
+      compromisedAt,
+      detectedAt,
+      versionsPublished: [],
+      consumersExposed: [],
+      windowDurationHours: Math.round(((end - start) / 3.6e6) * 10) / 10,
+    };
+  }
 
   const [versions, consumers] = await Promise.all([
     runQuery<{ version: string; publishedAt: string }>(
