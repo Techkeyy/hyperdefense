@@ -81,24 +81,105 @@ async function one(
   }
 }
 
+/**
+ * Every RETURN in these probes is restricted to `<binding>.<property>` or
+ * `count(*)`. HydraDB rejects `RETURN n` outright ("RETURN currently supports
+ * <binding>.<property> or count(*)"), so anything more expressive is treated
+ * as its own capability question with a dedicated row, rather than smuggled
+ * into unrelated probes.
+ */
 const SPECS: ProbeSpec[] = [
   {
-    id: "match-return",
-    label: "MATCH ... RETURN",
-    matters: "baseline read shape, the only one HydraDB advertises for rows",
+    id: "match-count-star",
+    label: "MATCH ... RETURN count(*)",
+    matters: "baseline read; the only projection form the server documents",
     run: async (d) => {
-      await one(d, `MATCH (n) RETURN n LIMIT 1`);
+      const r = await one(d, `MATCH (n) RETURN count(*) AS c`);
+      return { ok: typeof toNum(r[0]?.c) === "number" };
+    },
+  },
+  {
+    id: "return-literal",
+    label: "RETURN 1 (scalar without MATCH)",
+    matters:
+      "measured because assuming it works cost the first doctor run; if unsupported, no query in the codebase may compute a scalar without touching the graph",
+    run: async (d) => {
+      const r = await one(d, "RETURN 1 AS ok");
+      return { ok: toNum(r[0]?.ok) === 1 };
+    },
+  },
+  {
+    id: "return-property",
+    label: "RETURN n.prop",
+    matters:
+      "the primary read shape for the whole app: dependents, maintainers, versions, all need to project properties",
+    run: async (d) => {
+      const r = await one(
+        d,
+        `MATCH (n:${PROBE_LABEL}) RETURN n.k AS k LIMIT 1`,
+      );
+      return { ok: typeof r[0]?.k === "string" };
+    },
+  },
+  {
+    id: "return-node",
+    label: "RETURN n (whole node)",
+    matters:
+      "confirmed unsupported by the second doctor run; probed anyway so the matrix records it explicitly",
+    run: async (d) => {
+      await one(d, `MATCH (n:${PROBE_LABEL}) RETURN n LIMIT 1`);
       return { ok: true };
     },
   },
   {
-    id: "bare-return",
-    label: "bare RETURN without MATCH",
+    id: "count-binding",
+    label: "count(n) (function on a binding)",
     matters:
-      "measured because assuming it works cost a full doctor run; anything computing a scalar without touching the graph must be restructured",
+      "count(*) is documented; count(n) is not. If unsupported the ingest verification and every blast radius aggregate must switch to count(*)",
     run: async (d) => {
-      const r = await one(d, "RETURN 1 AS ok");
-      return { ok: toNum(r[0]?.ok) === 1 };
+      const r = await one(
+        d,
+        `MATCH (n:${PROBE_LABEL}) RETURN count(n) AS c`,
+      );
+      return { ok: toNum(r[0]?.c) >= 1 };
+    },
+  },
+  {
+    id: "count-distinct",
+    label: "count(DISTINCT n)",
+    matters:
+      "blast radius de-duplicates affected packages; without it a package reachable by two paths counts twice",
+    run: async (d) => {
+      const r = await one(
+        d,
+        `MATCH (n:${PROBE_LABEL}) RETURN count(DISTINCT n) AS c`,
+      );
+      return { ok: toNum(r[0]?.c) >= 1 };
+    },
+  },
+  {
+    id: "collect-property",
+    label: "collect(n.k)",
+    matters:
+      "maintainer overlap groups package lists per maintainer; without it the output is one row per (maintainer, package) pair and de-duplication moves to the client",
+    run: async (d) => {
+      const r = await one(
+        d,
+        `MATCH (n:${PROBE_LABEL}) RETURN collect(n.k) AS ks`,
+      );
+      return { ok: Array.isArray(r[0]?.ks) };
+    },
+  },
+  {
+    id: "collect-distinct",
+    label: "collect(DISTINCT n.k)",
+    matters: "same as collect, deduplicated",
+    run: async (d) => {
+      const r = await one(
+        d,
+        `MATCH (n:${PROBE_LABEL}) RETURN collect(DISTINCT n.k) AS ks`,
+      );
+      return { ok: Array.isArray(r[0]?.ks) };
     },
   },
   {
@@ -106,13 +187,11 @@ const SPECS: ProbeSpec[] = [
     label: "CREATE node with label and property",
     matters: "ingestion writes every package as a labelled node",
     run: async (d) => {
-      // No trailing RETURN: mutations are issued as pure writes so a
-      // row-execution limit cannot make a working write look broken.
-      await one(d, `CREATE (n:${PROBE_LABEL} {k: $k})`, { k: "seed" });
+      await one(d, `CREATE (n:${PROBE_LABEL} {k: $k})`, { k: "seed-a" });
       const r = await one(
         d,
-        `MATCH (n:${PROBE_LABEL} {k: $k}) RETURN count(n) AS c`,
-        { k: "seed" },
+        `MATCH (n:${PROBE_LABEL} {k: $k}) RETURN count(*) AS c`,
+        { k: "seed-a" },
       );
       return { ok: toNum(r[0]?.c) >= 1 };
     },
@@ -121,14 +200,14 @@ const SPECS: ProbeSpec[] = [
     id: "merge-idempotent",
     label: "MERGE is idempotent",
     matters:
-      "ingestion re-visits shared dependencies constantly; without MERGE the graph fills with duplicates",
+      "ingestion re-visits shared dependencies constantly; without MERGE the graph fills with duplicates and every subsequent count is wrong",
     run: async (d) => {
-      await one(d, `MERGE (n:${PROBE_LABEL} {k: $k})`, { k: "merge" });
-      await one(d, `MERGE (n:${PROBE_LABEL} {k: $k})`, { k: "merge" });
+      await one(d, `MERGE (n:${PROBE_LABEL} {k: $k})`, { k: "seed-b" });
+      await one(d, `MERGE (n:${PROBE_LABEL} {k: $k})`, { k: "seed-b" });
       const r = await one(
         d,
-        `MATCH (n:${PROBE_LABEL} {k: $k}) RETURN count(n) AS c`,
-        { k: "merge" },
+        `MATCH (n:${PROBE_LABEL} {k: $k}) RETURN count(*) AS c`,
+        { k: "seed-b" },
       );
       const c = toNum(r[0]?.c);
       return { ok: c === 1, detail: c === 1 ? undefined : `produced ${c} nodes` };
@@ -141,7 +220,7 @@ const SPECS: ProbeSpec[] = [
     run: async (d) => {
       const r = await one(
         d,
-        `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}]->(b) RETURN count(b) AS c`,
+        `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}]->(b) RETURN count(*) AS c`,
       );
       return { ok: toNum(r[0]?.c) === 1 };
     },
@@ -153,7 +232,7 @@ const SPECS: ProbeSpec[] = [
     run: async (d) => {
       const r = await one(
         d,
-        `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}*2]->(n) RETURN count(n) AS c`,
+        `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}*2]->(n) RETURN count(*) AS c`,
       );
       return { ok: toNum(r[0]?.c) >= 1 };
     },
@@ -165,7 +244,7 @@ const SPECS: ProbeSpec[] = [
     run: async (d) => {
       const r = await one(
         d,
-        `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}*1..5]->(n) RETURN count(DISTINCT n) AS c`,
+        `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}*1..5]->(n) RETURN count(*) AS c`,
       );
       return { ok: toNum(r[0]?.c) >= 1 };
     },
@@ -178,7 +257,7 @@ const SPECS: ProbeSpec[] = [
     run: async (d) => {
       const r = await one(
         d,
-        `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}*1..10]->(n) RETURN count(DISTINCT n) AS c`,
+        `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}*1..10]->(n) RETURN count(*) AS c`,
       );
       return { ok: toNum(r[0]?.c) >= 1 };
     },
@@ -191,7 +270,7 @@ const SPECS: ProbeSpec[] = [
     run: async (d) => {
       const r = await one(
         d,
-        `MATCH (:${PROBE_LABEL} {k:'c4'})<-[:${PROBE_REL}*1..5]-(n) RETURN count(DISTINCT n) AS c`,
+        `MATCH (:${PROBE_LABEL} {k:'c4'})<-[:${PROBE_REL}*1..5]-(n) RETURN count(*) AS c`,
       );
       return { ok: toNum(r[0]?.c) >= 1 };
     },
@@ -199,7 +278,8 @@ const SPECS: ProbeSpec[] = [
   {
     id: "named-path-length",
     label: "named path with length()",
-    matters: "depth is reported per affected package in the CLI output",
+    matters:
+      "depth is reported per affected package in the CLI output; without it the report can still exist, just without the per-row depth",
     run: async (d) => {
       const r = await one(
         d,
@@ -210,23 +290,11 @@ const SPECS: ProbeSpec[] = [
     },
   },
   {
-    id: "collect-distinct",
-    label: "collect(DISTINCT x)",
-    matters: "maintainer overlap groups package lists per maintainer",
-    run: async (d) => {
-      const r = await one(
-        d,
-        `MATCH (n:${PROBE_LABEL}) RETURN collect(DISTINCT n.k) AS ks`,
-      );
-      return { ok: Array.isArray(r[0]?.ks) };
-    },
-  },
-  {
     id: "unwind-param",
     label: "UNWIND $list",
     matters: "batched writes and multi-source queries both depend on it",
     run: async (d) => {
-      const r = await one(d, `UNWIND $xs AS x RETURN count(x) AS c`, {
+      const r = await one(d, `UNWIND $xs AS x RETURN count(*) AS c`, {
         xs: ["a", "b", "c"],
       });
       return { ok: toNum(r[0]?.c) === 3 };
@@ -239,7 +307,7 @@ const SPECS: ProbeSpec[] = [
     run: async (d) => {
       const r = await one(
         d,
-        `MATCH (n:${PROBE_LABEL}) WHERE n.k IN $ks RETURN count(n) AS c`,
+        `MATCH (n:${PROBE_LABEL}) WHERE n.k IN $ks RETURN count(*) AS c`,
         { ks: ["c0", "c1"] },
       );
       return { ok: toNum(r[0]?.c) === 2 };
@@ -254,7 +322,7 @@ const SPECS: ProbeSpec[] = [
         d,
         `MATCH (n:${PROBE_LABEL} {k:'c0'})
          OPTIONAL MATCH (n)-[:__NOPE]->(m)
-         RETURN count(n) AS c`,
+         RETURN count(*) AS c`,
       );
       return { ok: toNum(r[0]?.c) >= 1 };
     },
@@ -268,7 +336,7 @@ const SPECS: ProbeSpec[] = [
         d,
         `MATCH (a:${PROBE_LABEL} {k:'c0'}), (b:${PROBE_LABEL} {k:'c2'})
          CALL algo.SPpaths({sourceNode: a, targetNode: b, relTypes: ['${PROBE_REL}']})
-         YIELD path RETURN count(path) AS c`,
+         YIELD path RETURN count(*) AS c`,
       );
       return { ok: true, detail: `returned ${toNum(r[0]?.c)} paths` };
     },
@@ -282,7 +350,7 @@ const SPECS: ProbeSpec[] = [
         d,
         `MATCH (a:${PROBE_LABEL} {k:'c0'})
          CALL algo.SSpaths({sourceNode: a, relTypes: ['${PROBE_REL}'], maxLen: 5})
-         YIELD path RETURN count(path) AS c`,
+         YIELD path RETURN count(*) AS c`,
       );
       return { ok: true, detail: `returned ${toNum(r[0]?.c)} paths` };
     },
@@ -297,7 +365,7 @@ const SPECS: ProbeSpec[] = [
         d,
         `MATCH (a:${PROBE_LABEL} {k:'c0'}), (b:${PROBE_LABEL} {k:'c3'})
          CALL algo.MSpaths({sourceNodes: [a], targetNodes: [b], relTypes: ['${PROBE_REL}'], maxLen: 5})
-         YIELD path RETURN count(path) AS c`,
+         YIELD path RETURN count(*) AS c`,
       );
       return { ok: true, detail: `returned ${toNum(r[0]?.c)} paths` };
     },
@@ -344,9 +412,12 @@ async function seedChainFallback(driver: Driver): Promise<void> {
  */
 async function verifySeed(driver: Driver): Promise<boolean> {
   try {
+    // count(*) rather than count(n): count(*) is the documented projection
+    // form, and if count(n) turns out to be unsupported the seed verifier
+    // must not itself be the thing that fails.
     const r = await one(
       driver,
-      `MATCH (n:${PROBE_LABEL}) RETURN count(n) AS c`,
+      `MATCH (n:${PROBE_LABEL}) RETURN count(*) AS c`,
     );
     return toNum(r[0]?.c) >= 5;
   } catch {
