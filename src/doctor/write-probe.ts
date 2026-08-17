@@ -91,8 +91,44 @@ export async function runWriteProbe(): Promise<WriteProbeResult[]> {
         "MATCH (c {id: 9002})-[:DEPENDED_ON_BY*1..2]->(x:Package) RETURN x.id AS id, x.name AS name",
       params: {},
     },
+    // --- Native path procedures, CORRECT form this time -------------------
+    // The first probe used `MATCH ... CALL`, which fails is_native_path_procedure
+    // and falls through to a clause walker that does not allow CALL. The
+    // statement must START with `CALL algo.`, which short-circuits straight to
+    // the procedure engine. Source: query/opencypher.rs
+    // classify_opencypher_query_access + query/path_procedure.rs
+    // is_native_path_procedure. Shape taken from HydraDB's own Bolt test
+    // bolt_server_runs_native_path_procedure_calls.
     {
-      step: "9. two-hop maintainer pattern with collect()",
+      step: "9a. algo.SSpaths, CALL-first, sourceNode by id",
+      query:
+        "CALL algo.SSpaths({sourceNode: 9001, relTypes: ['DEPENDS_ON'], maxLen: 3}) YIELD path RETURN path",
+      params: {},
+    },
+    {
+      step: "9b. algo.SPpaths, CALL-first, source + target by id",
+      query:
+        "CALL algo.SPpaths({sourceNode: 9001, targetNode: 9002, relTypes: ['DEPENDS_ON'], maxLen: 3}) YIELD path RETURN path",
+      params: {},
+    },
+    {
+      step: "9c. algo.MSpaths, indexed label/property selectors (the many-at-once primitive)",
+      query:
+        "CALL algo.MSpaths({sourceLabel: 'Package', sourceProperty: 'name', " +
+        "sourceValues: ['__probe_pkg_a'], relTypes: ['DEPENDS_ON'], " +
+        "maxLen: 3, relDirection: 'outgoing', resultLimit: 100}) YIELD path RETURN path",
+      params: {},
+    },
+    {
+      step: "9d. algo.MSpaths over the reverse edge (the real blast-radius query)",
+      query:
+        "CALL algo.MSpaths({sourceLabel: 'Package', sourceProperty: 'name', " +
+        "sourceValues: ['__probe_pkg_b'], relTypes: ['DEPENDED_ON_BY'], " +
+        "maxLen: 5, relDirection: 'outgoing', resultLimit: 100}) YIELD path RETURN path",
+      params: {},
+    },
+    {
+      step: "10. two-hop maintainer pattern with collect()",
       query:
         "MATCH (c {id: $id})<-[:PUBLISHES]-(m:Maintainer)-[:PUBLISHES]->(other:Package) RETURN m.username AS maintainer, collect(other.name) AS names",
       params: { id: A },
