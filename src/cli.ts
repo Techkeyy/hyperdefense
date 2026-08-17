@@ -35,6 +35,7 @@ import { findWorkingConnection, runProbes } from "./doctor/probe.js";
 import { probeRegistry } from "./doctor/registry-probe.js";
 import { writeCapabilityReport } from "./doctor/report.js";
 import { runWriteProbe } from "./doctor/write-probe.js";
+import { safeInt } from "./util/num.js";
 
 program
   .name("hyperdefense")
@@ -188,7 +189,7 @@ program
     const spinner = ora("Crawling npm...").start();
     const raw = new RawGraph();
     const visited = new Set<string>();
-    const maxDepth = Number(opts.depth);
+    const maxDepth = safeInt(opts.depth, 2, 1, 20);
 
     for (const pkg of opts.packages) {
       spinner.text = `Crawling ${pkg}... (${visited.size} packages seen)`;
@@ -269,8 +270,8 @@ program
       return;
     }
 
-    const packages = opts.packages ?? SEED_PACKAGES.slice(0, Number(opts.count));
-    const maxDepth = Number(opts.depth);
+    const packages = opts.packages ?? SEED_PACKAGES.slice(0, safeInt(opts.count, 20, 1, 500));
+    const maxDepth = safeInt(opts.depth, 2, 1, 20);
     const visited = new Set<string>();
 
     // The id registry persists the name -> compact-integer-id map so later
@@ -405,7 +406,7 @@ program
   .action(async (packageNames: string[], opts) => {
     const registry = new IdRegistry(defaultRegistryPath());
     await registry.load();
-    const depth = Number(opts.depth);
+    const depth = safeInt(opts.depth, 5, 1, 20);
 
     const spinner = ora(`Traversing ${packageNames.length} sources...`).start();
     // Union of per-package traversals, NOT algo.MSpaths. The procedure returns
@@ -475,8 +476,8 @@ program
       registry,
       compromised,
       opts.to,
-      Number(opts.depth),
-      Number(opts.paths),
+      safeInt(opts.depth, 6, 1, 20),
+      safeInt(opts.paths, 5, 1, 1000),
     );
     const ms = Date.now() - t0;
     spinner.stop();
@@ -671,7 +672,7 @@ program
 
     // For the worst offenders, do the thing that makes this a graph tool:
     // turn the advisory into a blast radius.
-    const top = Math.max(0, Math.min(10, Number(opts.top)));
+    const top = safeInt(opts.top, 3, 0, 10);
     if (top > 0) {
       console.log(
         chalk.bold(`\n  Blast radius for the top ${top}:\n`),
@@ -1192,7 +1193,7 @@ program
     const spinner = ora("Scanning for typosquats...").start();
     const candidates = await findTyposquats(
       packageName,
-      Number(opts.distance),
+      safeInt(opts.distance, 2, 1, 10),
     );
     spinner.stop();
 

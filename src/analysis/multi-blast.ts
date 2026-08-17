@@ -1,5 +1,6 @@
 import { runIsolatedQuery } from "../db/connection.js";
 import type { IdRegistry } from "../db/id-registry.js";
+import { safeInt } from "../util/num.js";
 
 /**
  * HydraDB's native `algo.MSpaths` path procedure.
@@ -140,8 +141,8 @@ export async function attackPaths(
     return { paths: [], native: true, undecodableRows: 0 };
   }
 
-  const depth = Math.max(1, Math.min(20, Math.floor(maxDepth)));
-  const count = Math.max(1, Math.min(1000, Math.floor(maxPathsPerPair)));
+  const depth = safeInt(maxDepth, 6, 1, 20);
+  const count = safeInt(maxPathsPerPair, 5, 1, 1000);
 
   const query =
     `CALL algo.MSpaths({sourceLabel: 'Package', sourceProperty: 'name', ` +
@@ -223,7 +224,7 @@ export async function multiBlastRadiusViaMSpaths(
     return { sources: [], affected: [], pathsReturned: 0, native: true };
   }
 
-  const depth = Math.max(1, Math.min(20, Math.floor(maxDepth)));
+  const depth = safeInt(maxDepth, 5, 1, 20);
   const values = known.map(cypherString).join(", ");
 
   // Must start with CALL. Traverses the materialised reverse edge outward,
