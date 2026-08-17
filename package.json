@@ -10,6 +10,7 @@
     "build": "tsc",
     "dev": "tsx src/cli.ts",
     "doctor": "tsx src/cli.ts doctor",
+    "demo": "tsx src/cli.ts demo",
     "blast": "tsx src/cli.ts blast",
     "ingest": "tsx src/cli.ts ingest",
     "test": "vitest run",

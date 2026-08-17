@@ -1,0 +1,15 @@
+{
+  "name": "example-vulnerable-app",
+  "lockfileVersion": 3,
+  "_comment": "SYNTHETIC fixture, not a real project. Represents an application that resolved the compromised @tanstack/router-core@1.0.1, including transitively under two different parents, so the CI gate has something to catch. Used by `npm run demo` to show the failing path; this repo's own package-lock.json shows the passing path.",
+  "packages": {
+    "": { "name": "example-vulnerable-app", "version": "1.0.0" },
+    "node_modules/@tanstack/router-core": { "version": "1.0.1" },
+    "node_modules/@tanstack/react-router": { "version": "1.0.1" },
+    "node_modules/@tanstack/react-router/node_modules/@tanstack/router-core": { "version": "1.0.1" },
+    "node_modules/@tanstack/router-plugin": { "version": "1.0.1" },
+    "node_modules/@tanstack/history": { "version": "1.0.0" },
+    "node_modules/@tanstack/store": { "version": "0.7.7" },
+    "node_modules/express": { "version": "5.2.1" }
+  }
+}

@@ -81,12 +81,16 @@ service with nothing to install locally.
    This probes the running HydraDB and the npm registry, then writes a measured
    capability matrix to `docs/CAPABILITIES.md`.
 
-3. Run the deterministic demo, no network needed:
+3. Run the whole story in one command, offline and deterministic:
 
    ```bash
-   npm run dev -- ingest --fixture fixtures/tanstack.json
-   npm run dev -- blast @tanstack/router-core
+   npm run demo
    ```
+
+   That ingests the committed TanStack graph, computes the blast radius across
+   all three layers, generates the remediation artifacts, then runs the CI gate
+   twice: failing against a vulnerable app's lockfile and passing against this
+   repo's own. A gate is only worth trusting if you have seen it fail.
 
 ### Local (VS Code Dev Containers)
 
@@ -239,13 +243,19 @@ Verified working against a live HydraDB:
 - Remediation artifacts and the lockfile gate, run against this repo's own
   lockfile (134 resolved packages scanned).
 
-Not yet exercised against a live graph:
+- Temporal exposure. Verified on the TanStack graph: correctly identified the
+  version published inside a given window and the three consumers that could
+  have resolved it.
+- Typosquat detection, verified against `fixtures/typosquat-demo.json`.
 
-- The temporal exposure query. The code is written and the `HAS_VERSION` edges
-  are ingested, but the `exposure` command has not been run end to end, so it is
-  not claimed as working.
-- Typosquat detection is pure logic with passing unit tests, but has not been
-  run against an ingested graph.
+All three graph layers are therefore exercised against a live HydraDB.
+
+One caveat stated plainly: on a clean graph, typosquat detection correctly
+returns **nothing**, because a legitimate registry subset contains no
+near-misses. Demonstrating it needs a graph that actually holds some, which is
+what `fixtures/typosquat-demo.json` provides. That fixture is hand-authored and
+labelled as such, in contrast to `fixtures/tanstack.json`, which is real npm
+data.
 
 Known scope limits:
 

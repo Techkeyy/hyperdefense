@@ -1,0 +1,251 @@
+{
+  "meta": {
+    "name": "Typosquat detection demo",
+    "incident": "Illustrates typosquat techniques (character omission, insertion, adjacent swap, prefix) used in real npm attacks",
+    "capturedAt": "2026-08-17T15:17:14.193Z",
+    "roots": [
+      "express",
+      "lodash",
+      "chalk",
+      "commander",
+      "request",
+      "react",
+      "axios",
+      "debug"
+    ],
+    "provenance": "SYNTHETIC, hand-authored. Unlike fixtures/tanstack.json (real npm data), these near-miss names were constructed to exercise the edit-distance detector: a clean registry subset contains no typosquats, so detection cannot be demonstrated on real data alone. The legitimate names are real packages; the near-misses are not published."
+  },
+  "packages": [
+    {
+      "name": "aixos",
+      "description": "SYNTHETIC near-miss (swap)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "axios",
+      "description": "legitimate package",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "axios-http",
+      "description": "SYNTHETIC near-miss (prefix)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "chak",
+      "description": "SYNTHETIC near-miss (omit)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "chalk",
+      "description": "legitimate package",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "chalkk",
+      "description": "SYNTHETIC near-miss (insert)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "comander",
+      "description": "SYNTHETIC near-miss (omit)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "commander",
+      "description": "legitimate package",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "commandr",
+      "description": "SYNTHETIC near-miss (omit)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "debgu",
+      "description": "SYNTHETIC near-miss (swap)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "debug",
+      "description": "legitimate package",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "expres",
+      "description": "SYNTHETIC near-miss (omit)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "express",
+      "description": "legitimate package",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "expresss",
+      "description": "SYNTHETIC near-miss (insert)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "exress",
+      "description": "SYNTHETIC near-miss (omit)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "lodahs",
+      "description": "SYNTHETIC near-miss (swap)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "lodas",
+      "description": "SYNTHETIC near-miss (omit)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "lodash",
+      "description": "legitimate package",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "raect",
+      "description": "SYNTHETIC near-miss (swap)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "react",
+      "description": "legitimate package",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "recat",
+      "description": "SYNTHETIC near-miss (swap)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "reqeust",
+      "description": "SYNTHETIC near-miss (swap)",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "request",
+      "description": "legitimate package",
+      "latestVersion": "1.0.0"
+    },
+    {
+      "name": "requst",
+      "description": "SYNTHETIC near-miss (omit)",
+      "latestVersion": "1.0.0"
+    }
+  ],
+  "maintainers": [
+    {
+      "username": "legit-maintainer",
+      "email": ""
+    },
+    {
+      "username": "suspicious-actor",
+      "email": ""
+    }
+  ],
+  "versions": [],
+  "dependencies": [],
+  "publishes": [
+    [
+      "legit-maintainer",
+      "axios"
+    ],
+    [
+      "legit-maintainer",
+      "chalk"
+    ],
+    [
+      "legit-maintainer",
+      "commander"
+    ],
+    [
+      "legit-maintainer",
+      "debug"
+    ],
+    [
+      "legit-maintainer",
+      "express"
+    ],
+    [
+      "legit-maintainer",
+      "lodash"
+    ],
+    [
+      "legit-maintainer",
+      "react"
+    ],
+    [
+      "legit-maintainer",
+      "request"
+    ],
+    [
+      "suspicious-actor",
+      "aixos"
+    ],
+    [
+      "suspicious-actor",
+      "axios-http"
+    ],
+    [
+      "suspicious-actor",
+      "chak"
+    ],
+    [
+      "suspicious-actor",
+      "chalkk"
+    ],
+    [
+      "suspicious-actor",
+      "comander"
+    ],
+    [
+      "suspicious-actor",
+      "commandr"
+    ],
+    [
+      "suspicious-actor",
+      "debgu"
+    ],
+    [
+      "suspicious-actor",
+      "expres"
+    ],
+    [
+      "suspicious-actor",
+      "expresss"
+    ],
+    [
+      "suspicious-actor",
+      "exress"
+    ],
+    [
+      "suspicious-actor",
+      "lodahs"
+    ],
+    [
+      "suspicious-actor",
+      "lodas"
+    ],
+    [
+      "suspicious-actor",
+      "raect"
+    ],
+    [
+      "suspicious-actor",
+      "recat"
+    ],
+    [
+      "suspicious-actor",
+      "reqeust"
+    ],
+    [
+      "suspicious-actor",
+      "requst"
+    ]
+  ],
+  "hasVersion": []
+}

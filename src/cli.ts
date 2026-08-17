@@ -394,6 +394,146 @@ program
   });
 
 program
+  .command("demo")
+  .description(
+    "Run the whole story on committed fixtures: offline and deterministic",
+  )
+  .action(async () => {
+    const step = (n: number, title: string) =>
+      console.log(
+        chalk.bold.cyan(`\n${"═".repeat(64)}\n  ${n}. ${title}\n${"═".repeat(64)}`),
+      );
+
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+
+    // 1. Offline ingest from the real-npm fixture.
+    step(1, "Ingest the TanStack compromise graph (real npm data, offline)");
+    const snapshot = await loadSnapshot("fixtures/tanstack.json");
+    const buffer = new IngestBuffer(registry);
+    replaySnapshot(snapshot, buffer);
+    await buffer.flush();
+    await registry.save();
+    const c = buffer.counts();
+    console.log(
+      `  captured ${snapshot.meta.capturedAt}\n` +
+        `  ${c.packages} packages, ${c.maintainers} maintainers, ${c.versions} versions\n` +
+        `  ${c.dependencyEdges} DEPENDS_ON, ${c.reverseDependencyEdges} DEPENDED_ON_BY, ` +
+        `${c.publishesEdges} PUBLISHES`,
+    );
+
+    const target = "@tanstack/router-core";
+
+    // 2. The comparison that is the whole point.
+    step(2, `Blast radius: ${target}`);
+    const blast = await analyzeBlastRadius(registry, target);
+    console.log(
+      `  Dependency layer alone: ${chalk.yellow(String(blast.downstream.length))}`,
+    );
+    for (const d of blast.downstream) console.log(`    - ${d.name}`);
+    console.log(
+      `\n  Reachable via shared maintainer accounts: ${chalk.red.bold(
+        String(blast.totalAffected - blast.downstream.length),
+      )} more`,
+    );
+    for (const lm of blast.lateralMovement.slice(0, 3)) {
+      console.log(
+        `    @${lm.maintainer} owns ${lm.atRiskPackages.length} other packages`,
+      );
+    }
+    console.log(
+      chalk.red.bold(
+        `\n  ${blast.totalAffected} packages exposed, vs ${blast.downstream.length} ` +
+          `a dependency-only scanner reports`,
+      ),
+    );
+
+    // 3. Temporal layer.
+    step(3, "Temporal exposure window");
+    const exposure = await analyzeTemporalExposure(
+      registry,
+      target,
+      "2026-05-01T00:00:00Z",
+      "2026-12-31T00:00:00Z",
+    );
+    console.log(
+      `  window ${exposure.windowDurationHours}h, ` +
+        `${exposure.versionsPublished.length} version(s) published inside it, ` +
+        `${exposure.consumersExposed.length} consumer(s) could have resolved them`,
+    );
+    for (const v of exposure.versionsPublished) {
+      console.log(`    ${v.version} at ${v.publishedAt}`);
+    }
+
+    // 4. Generate the fix.
+    step(4, "Generate remediation artifacts");
+    const plan = buildPlan(target, blast, ["1.0.1"]);
+    const blocklist = toBlocklist(plan);
+    await mkdir(".hyperdefense", { recursive: true });
+    await writeFile(
+      ".hyperdefense/blocklist.json",
+      `${JSON.stringify(blocklist, null, 2)}\n`,
+      "utf8",
+    );
+    await writeFile(
+      ".hyperdefense/supply-chain-gate.yml",
+      renderWorkflow(plan),
+      "utf8",
+    );
+    console.log(
+      `  blocked outright: ${Object.keys(blocklist.blocked).join(", ")}\n` +
+        `  flagged for review: ${Object.keys(blocklist.review).length} packages\n` +
+        `  wrote .hyperdefense/blocklist.json and supply-chain-gate.yml`,
+    );
+
+    // 5. The gate, both outcomes. A gate only trusted if it can fail.
+    step(5, "Enforce it in CI (both outcomes)");
+    const vuln = await verifyLockfile(
+      ".hyperdefense/blocklist.json",
+      "fixtures/vulnerable-app-lock.json",
+    );
+    console.log(
+      chalk.red.bold(`  FAIL  vulnerable app (synthetic fixture)`) +
+        chalk.dim(`  exit 1, merge blocked`),
+    );
+    for (const v of vuln.violations) {
+      console.log(chalk.red(`    ${v.package}@${v.version}`) + chalk.dim(` (${v.path})`));
+    }
+    const own = await verifyLockfile(
+      ".hyperdefense/blocklist.json",
+      "package-lock.json",
+    );
+    console.log(
+      chalk.green.bold(
+        `\n  PASS  this repo (${own.packagesScanned} resolved packages scanned)`,
+      ) + chalk.dim("  exit 0"),
+    );
+
+    // 6. Typosquat, on the fixture built to exercise it.
+    step(6, "Typosquat detection");
+    const tsSnap = await loadSnapshot("fixtures/typosquat-demo.json");
+    const tsBuffer = new IngestBuffer(registry);
+    replaySnapshot(tsSnap, tsBuffer);
+    await tsBuffer.flush();
+    await registry.save();
+    console.log(chalk.dim(`  ${tsSnap.meta.provenance.split(".")[0]}.\n`));
+    const squats = await findTyposquats("express", 2);
+    console.log(`  near-misses for "express": ${squats.length}`);
+    for (const s of squats.slice(0, 6)) {
+      console.log(`    ${s.suspect}  ${chalk.dim(`[${s.type}] distance ${s.distance}`)}`);
+    }
+
+    console.log(
+      chalk.bold.cyan(`\n${"═".repeat(64)}`) +
+        chalk.dim(
+          `\n  Every number above came from HydraDB traversals over committed\n` +
+            `  fixtures. No network, fully reproducible.\n`,
+        ),
+    );
+    await closeConnection();
+  });
+
+program
   .command("remediate <package>")
   .description(
     "Generate the fix: blocklist, npm overrides, and a CI gate workflow",
