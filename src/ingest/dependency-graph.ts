@@ -164,7 +164,7 @@ export class IngestBuffer implements GraphSink {
 
   /** Flush all buffered rows to HydraDB. Nodes before edges, so MERGE-by-id on
    * an edge endpoint always finds a node that already carries its properties. */
-  async flush(batchSize = 500): Promise<void> {
+  async flush(batchSize = 250): Promise<void> {
     await this.flushRows("packages", QUERIES.upsertPackages, [...this.packages.values()], batchSize);
     await this.flushRows("maintainers", QUERIES.upsertMaintainers, [...this.maintainers.values()], batchSize);
     await this.flushRows("versions", QUERIES.upsertVersions, [...this.versions.values()], batchSize);
@@ -181,24 +181,54 @@ export class IngestBuffer implements GraphSink {
     batchSize: number,
   ): Promise<void> {
     for (let i = 0; i < rows.length; i += batchSize) {
-      const batch = rows.slice(i, i + batchSize);
-      try {
-        await runQuery(query, { rows: batch });
-      } catch (err: unknown) {
+      await this.writeBatch(stage, query, rows.slice(i, i + batchSize), i);
+    }
+  }
+
+  /**
+   * Write one batch, halving and retrying on failure.
+   *
+   * A large ingest into a fresh graph intermittently returns HTTP 500 from
+   * HydraDB partway through the biggest write (observed on batch 4 of 2,235
+   * version edges). The server suppresses the real cause, so the size at which
+   * it gives up cannot be looked up, only discovered. Rather than pick a magic
+   * constant that happens to work on one machine, this finds a workable size at
+   * runtime: split, retry, and only give up when a SINGLE row still fails, at
+   * which point the problem is that row rather than the volume.
+   *
+   * Retrying a batch is safe because every write is a MERGE keyed on a
+   * deterministic id, so re-sending rows that already landed is a no-op.
+   */
+  private async writeBatch(
+    stage: string,
+    query: string,
+    batch: unknown[],
+    offset: number,
+  ): Promise<void> {
+    if (batch.length === 0) return;
+
+    try {
+      await runQuery(query, { rows: batch });
+      return;
+    } catch (err: unknown) {
+      if (batch.length === 1) {
         const e = err as { code?: string; message?: string };
-        // Annotate with which stage and a sample row so a failure names itself
-        // instead of collapsing into HydraDB's generic wrapper message.
         const sample = JSON.stringify(batch[0], (_k, v) =>
           typeof v === "object" && v && "toNumber" in v
             ? (v as { toNumber(): number }).toNumber()
             : v,
         );
         throw new Error(
-          `flush failed at stage "${stage}" (rows ${i}..${i + batch.length}). ` +
+          `flush failed at stage "${stage}" on a SINGLE row (index ${offset}). ` +
+            `Not a batch-size problem. ` +
             `HydraDB code=${e.code ?? "?"} message=${e.message ?? "?"}. ` +
-            `sample row=${sample}`,
+            `row=${sample}`,
         );
       }
+
+      const mid = Math.ceil(batch.length / 2);
+      await this.writeBatch(stage, query, batch.slice(0, mid), offset);
+      await this.writeBatch(stage, query, batch.slice(mid), offset + mid);
     }
   }
 }
