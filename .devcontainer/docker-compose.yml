@@ -1,0 +1,45 @@
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm
+    volumes:
+      - ..:/workspaces/hyperdefense:cached
+    command: sleep infinity
+    environment:
+      # bolt:// is a DIRECT uri and bypasses routing. neo4j:// is a ROUTED uri:
+      # the server returns a routing table and the client reconnects to whatever
+      # address it advertises. Across containers that indirection is a foot-gun,
+      # so the direct scheme is the default here.
+      HYDRA_URI: bolt://hydradb:7687
+      HYDRA_TOKEN: local-development-token-32-bytes
+      HYDRA_HTTP: http://hydradb:8443
+      HYDRA_ADMIN: http://hydradb:9090
+    depends_on:
+      hydradb:
+        condition: service_started
+
+  hydradb:
+    image: ghcr.io/hydra-db/hydradb:latest
+    environment:
+      CLOUD_PROVIDER: local
+      LOCAL_PATH: /data/store
+      GRAPH_NAMESPACE: default
+      GRAPH_ID: default
+      GRAPH_CELL_ID: cell-0
+      GRAPH_CELLS: cell-0
+      GRAPH_NODE_ID: node-0
+      # Must be an address reachable from the APP container, not from hydradb's
+      # own localhost, or routed-uri clients follow it to the wrong host.
+      GRAPH_BOLT_NODE_ADDRESSES: "node-0=hydradb:7687"
+      GRAPH_ADVERTISED_BOLT_ADDR: "hydradb:7687"
+      GRAPH_DATA_CACHE_DIR: /data/cache
+      GRAPH_AUTH_TOKEN_FILE: /data/auth-token
+      GRAPH_ALLOW_PLAINTEXT: "true"
+      RUST_MIN_STACK: "33554432"
+    volumes:
+      - ./hydra-auth/auth-token:/data/auth-token:ro
+      - hydra-store:/data/store
+      - hydra-cache:/data/cache
+
+volumes:
+  hydra-store:
+  hydra-cache:

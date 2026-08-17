@@ -1,0 +1,7 @@
+# The auth token is read byte-for-byte by HydraDB. A CRLF conversion on a
+# Windows checkout appends \r to the token and authentication fails with a
+# misleading error, so this file must never be touched by eol normalisation.
+.devcontainer/hydra-auth/auth-token -text
+
+# Shell scripts run inside Linux containers.
+*.sh text eol=lf

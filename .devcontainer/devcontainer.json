@@ -1,0 +1,22 @@
+{
+  "name": "HyperDefense",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/hyperdefense",
+  "forwardPorts": [7687, 8443, 9090],
+  "portsAttributes": {
+    "7687": { "label": "HydraDB Bolt" },
+    "8443": { "label": "HydraDB HTTP API" },
+    "9090": { "label": "HydraDB admin and metrics" }
+  },
+  "postCreateCommand": "npm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "remoteUser": "node"
+}

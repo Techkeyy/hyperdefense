@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
+    "doctor": "tsx src/cli.ts doctor",
     "blast": "tsx src/cli.ts blast",
     "ingest": "tsx src/cli.ts ingest",
     "test": "vitest run",

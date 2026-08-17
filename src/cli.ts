@@ -10,6 +10,9 @@ import { analyzeBlastRadius } from "./analysis/blast-radius.js";
 import { analyzeLateralMovement } from "./analysis/lateral-movement.js";
 import { analyzeTemporalExposure } from "./analysis/temporal-exposure.js";
 import { findTyposquats } from "./analysis/typosquat.js";
+import { findWorkingConnection, runProbes } from "./doctor/probe.js";
+import { probeRegistry } from "./doctor/registry-probe.js";
+import { writeCapabilityReport } from "./doctor/report.js";
 
 program
   .name("hyperdefense")
@@ -17,6 +20,115 @@ program
     "Multi-graph supply chain blast radius engine built on HydraDB",
   )
   .version("0.1.0");
+
+program
+  .command("doctor")
+  .description(
+    "Probe HydraDB and the npm registry, and write the capability matrix",
+  )
+  .option("--skip-registry", "skip the npm registry payload check")
+  .option(
+    "-o, --out <path>",
+    "where to write the matrix",
+    "docs/CAPABILITIES.md",
+  )
+  .action(async (opts) => {
+    console.log(chalk.bold("\n  HyperDefense doctor\n"));
+
+    const spinner = ora("Finding a working connection...").start();
+    const conn = await findWorkingConnection();
+
+    if (!conn.ok) {
+      spinner.fail("No connection succeeded");
+      console.log(
+        chalk.dim(
+          "\n  Every uri scheme and auth strategy was tried. Attempts:\n",
+        ),
+      );
+      for (const a of conn.attempts) {
+        console.log(
+          `    ${chalk.red("x")} ${a.uri}  auth=${a.auth}\n      ${chalk.dim(
+            (a.error ?? "").split("\n")[0].slice(0, 120),
+          )}`,
+        );
+      }
+      console.log(
+        chalk.yellow(
+          "\n  Is HydraDB running? In a Codespace it starts with the devcontainer.\n",
+        ),
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    spinner.succeed(
+      `Connected: ${conn.result.uri} (auth: ${conn.result.auth})`,
+    );
+
+    const probeSpinner = ora("Probing Cypher features...").start();
+    const probes = await runProbes(
+      conn.result,
+      process.env.HYDRA_TOKEN ?? "local-development-token-32-bytes",
+    );
+    probeSpinner.stop();
+
+    console.log(chalk.bold("\n  Cypher features\n"));
+    for (const p of probes) {
+      const mark =
+        p.status === "supported"
+          ? chalk.green("ok  ")
+          : p.status === "wrong-result"
+            ? chalk.yellow("warn")
+            : chalk.red("fail");
+      console.log(`    ${mark} ${p.label}`);
+      if (p.detail && p.status !== "supported") {
+        console.log(chalk.dim(`         ${p.detail.slice(0, 110)}`));
+      }
+    }
+
+    let registry: Awaited<ReturnType<typeof probeRegistry>> = {
+      ok: true,
+      checks: [],
+    };
+    if (!opts.skipRegistry) {
+      const rSpinner = ora("Checking npm registry payload shape...").start();
+      registry = await probeRegistry();
+      rSpinner.stop();
+
+      console.log(chalk.bold("\n  npm registry payload\n"));
+      if (registry.error) {
+        console.log(chalk.red(`    fail ${registry.error}`));
+      }
+      for (const c of registry.checks) {
+        const mark = c.present ? chalk.green("ok  ") : chalk.red("fail");
+        console.log(
+          `    ${mark} ${c.field} ${chalk.dim(c.sample ? `(${c.sample})` : "")}`,
+        );
+      }
+    }
+
+    await writeCapabilityReport(
+      { connection: conn.result, probes, registry },
+      opts.out,
+    );
+
+    const failed = probes.filter((p) => p.status !== "supported");
+    console.log(
+      chalk.bold(
+        `\n  ${probes.length - failed.length}/${probes.length} features supported`,
+      ),
+    );
+    console.log(chalk.dim(`  Matrix written to ${opts.out}\n`));
+
+    if (failed.length > 0) {
+      console.log(
+        chalk.yellow(
+          "  Unsupported features found. The query layer must route around them\n" +
+            "  before any traversal code is trusted.\n",
+        ),
+      );
+    }
+  });
 
 program
   .command("ingest")
