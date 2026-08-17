@@ -7,6 +7,11 @@ and the correctness suite
 [`examples/query_correctness.rs`](https://github.com/hydra-db/hydradb/blob/main/examples/query_correctness.rs).
 This is the contract the query layer is written against.
 
+Two of the source readings turned out to be wrong when run against a live
+server. Rather than silently editing them, they are corrected in
+[Corrections from live testing](#corrections-from-live-testing) at the end, with
+the evidence. Where the two disagree, **the live result wins**.
+
 ## The one fact that reshapes everything
 
 **Node identity is a non-negative integer `id`, not a string, and not a label.**
@@ -38,9 +43,12 @@ Shape: `MATCH ... [WITH ...] RETURN ...`. Rules, each verified in source:
   forces a named node: `node labels and non-id properties require a named node`.
   So `MATCH ({id: 5})-...` is fine, `MATCH (:Package)-...` is not,
   `MATCH (p:Package)-...` is.
-- **Variable-length paths** work: `-[:T*1..N]->`, both directions. This is the
-  blast-radius primitive, straight from the correctness suite:
-  `MATCH (u {id: 1})-[:E*1..N]->(v) RETURN v.id`.
+- **Variable-length paths** work OUTBOUND only: `-[:T*1..N]->`, with the source
+  node carrying a **literal** id. Straight from the correctness suite:
+  `MATCH (u {id: 1})-[:E*1..N]->(v) RETURN v.id`. The inbound form
+  `(c {id: N})<-[:T*1..N]-(x)` is rejected, and a `$param` id is rejected too.
+  See "Corrections from live testing" (1); this reading was initially wrong and
+  it changed the data model.
 - `ORDER BY`, `SKIP`, `LIMIT` supported. `WITH` is pass-through identifiers only,
   no DISTINCT/WHERE/ORDER BY/SKIP/LIMIT on it.
 - `UNION` supported for reads; no mixing UNION and UNION ALL.
@@ -133,8 +141,10 @@ Common options: `relTypes` (required, non-empty), `relDirection`
    batches, not per-row CREATE.
 3. Use the update-if-newer SET guard for version/timestamp so re-ingest is
    idempotent and temporally correct.
-4. Blast radius is `MATCH (c {id: $id})<-[:DEPENDS_ON*1..N]-(x) RETURN x.id`,
+4. Blast radius traverses a materialised reverse edge OUTWARD:
+   `MATCH (c {id: <literal>})-[:DEPENDED_ON_BY*1..N]->(x:Package) RETURN x.name`,
    with de-duplication in TypeScript (no DISTINCT aggregate).
+   See "Corrections from live testing" below: the inbound form does not work.
 5. Maintainer overlap: project `collect(other.name)` grouped per maintainer;
    dedupe client-side.
 6. No `WHERE id IN $list`; drive multi-package queries through UNWIND or the
@@ -142,3 +152,83 @@ Common options: `relTypes` (required, non-empty), `relDirection`
 7. algo.MSpaths is available for the "many compromised packages at once" query
    and is the strongest HydraDB-native story, if an index on the selector
    property exists.
+
+---
+
+## Corrections from live testing
+
+Everything above this section was read from the HydraDB source. Running it
+against a live server disproved two of those readings. These corrections are
+verified by `npm run dev -- debug-write` against a real instance, and the probe
+retains a case for each so a regression is visible.
+
+### 1. Variable-length traversal is OUTBOUND only
+
+The source reading said variable-length patterns work in either direction. They
+do not. From `src/shard/query.rs:3976`:
+
+```rust
+let Some(src) = edge.src.id else {
+    return Err(GraphError::UnsupportedQuery {
+        feature: "variable-length MATCH requires a fixed source id",
+    });
+};
+```
+
+The edge's **source** node must carry a literal id. In an inbound pattern
+`(c {id: 5})<-[:DEPENDS_ON*1..2]-(x)` the source is `x`, which has no id, so the
+query is rejected no matter where the id is placed. A parameter is also rejected;
+the id must be a literal in the query text.
+
+Consequence: "who depends on X" cannot be answered by reversing the arrow. The
+reverse edge has to exist in the graph. Ingestion writes `DEPENDED_ON_BY`
+alongside every `DEPENDS_ON`, and blast radius walks it forward. Roughly double
+the edge count, which is the price of the constraint.
+
+Fixed-length patterns are unaffected and do accept `$id` parameters. The two-hop
+maintainer-overlap query relies on that and works.
+
+### 2. Node ids must be small, and writes need a writable store
+
+Two separate things were conflated during debugging, so both are recorded:
+
+- **Id size was NOT the problem.** Compact ids (9001) failed exactly like
+  hash-based ids in the 2^53 range. Compact sequential ids are still what the
+  project uses, because they are the honest model for a GraphBLAS-indexed
+  vertex space, but they were not the fix.
+- **The actual cause was filesystem permissions.** The image runs as UID 10001;
+  Docker named volumes are created root-owned, so the process could not write
+  `/data/store`. Every write failed on the first storage operation while reads
+  succeeded. HydraDB's README documents this for bind mounts. The devcontainer
+  now runs the service as root.
+
+### 3. Write and read errors are deliberately suppressed
+
+`src/client/bolt/values.rs:271` and `src/client/http.rs:433` map any unmatched
+`GraphError` to the generic string `internal query execution error`, logging the
+real cause server-side as `Bolt suppressed internal graph error`. Both transports
+do this, so **the client can never see the real error**.
+
+When a write fails opaquely, read the container log rather than guessing:
+
+```bash
+docker logs $(docker ps --filter name=hydradb --format '{{.Names}}' | head -1) --tail 60
+```
+
+The devcontainer includes the `docker-outside-of-docker` feature so this works
+from inside the workspace.
+
+### 4. Confirmed working against a live server
+
+| Form | Status |
+|------|--------|
+| `UNWIND $rows AS row MERGE (n {id: row.id}) SET n:Label, n.p = row.p` | works |
+| `UNWIND $rows MATCH (s:L {id: row.src}), (d:L {id: row.dst}) MERGE (s)-[:T {id: row.eid}]->(d)` | works |
+| cross-label edge (`Maintainer` -> `Package`) | works |
+| `MATCH (n:L {id: $id}) RETURN n.name` | works |
+| `MATCH (c {id: <literal>})-[:T*1..2]->(x:L) RETURN x.name` | works |
+| two-hop fixed-length with `collect()` and `$id` param | works |
+| `MATCH (c {id: N})<-[:T*1..2]-(x)` | rejected, see 1 |
+
+Empty-string properties are accepted, so absent npm metadata does not need a
+null-handling path.
