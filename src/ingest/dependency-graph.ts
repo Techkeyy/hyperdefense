@@ -3,6 +3,7 @@ import { runQuery } from "../db/connection.js";
 import { QUERIES } from "../db/queries.js";
 import { IdRegistry } from "../db/id-registry.js";
 import { fetchPackage, type NpmPackageData } from "./npm-registry.js";
+import type { GraphSink } from "./snapshot.js";
 
 /**
  * HydraDB requires an integer node id, and neo4j-driver encodes a bare JS
@@ -40,7 +41,7 @@ interface EdgeRow {
  * supports (per-row CREATE of a lone node is not executable), and it keeps the
  * round-trip count bounded regardless of graph size.
  */
-export class IngestBuffer {
+export class IngestBuffer implements GraphSink {
   private packages = new Map<string, PackageRow>();
   private maintainers = new Map<string, MaintainerRow>();
   private versions = new Map<string, VersionRow>();
@@ -201,7 +202,7 @@ export class IngestBuffer {
  */
 export async function crawlPackage(
   name: string,
-  buffer: IngestBuffer,
+  buffer: GraphSink,
   visited: Set<string>,
   maxDepth: number,
   currentDepth = 0,

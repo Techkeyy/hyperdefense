@@ -6,6 +6,12 @@ import { closeConnection } from "./db/connection.js";
 import { initSchema } from "./db/schema.js";
 import { IngestBuffer, crawlPackage } from "./ingest/dependency-graph.js";
 import { IdRegistry, defaultRegistryPath } from "./db/id-registry.js";
+import {
+  RawGraph,
+  replaySnapshot,
+  saveSnapshot,
+  loadSnapshot,
+} from "./ingest/snapshot.js";
 import { SEED_PACKAGES } from "./ingest/npm-registry.js";
 import { analyzeBlastRadius } from "./analysis/blast-radius.js";
 import { analyzeLateralMovement } from "./analysis/lateral-movement.js";
@@ -155,9 +161,59 @@ program
   });
 
 program
+  .command("snapshot")
+  .description(
+    "Crawl npm once and save a replayable fixture (no HydraDB needed)",
+  )
+  .requiredOption("-p, --packages <names...>", "root packages to crawl")
+  .requiredOption("-o, --out <path>", "where to write the fixture JSON")
+  .option("-d, --depth <number>", "max dependency depth", "2")
+  .option("--name <label>", "scenario name", "npm snapshot")
+  .option("--incident <text>", "real incident this models, if any")
+  .action(async (opts) => {
+    const spinner = ora("Crawling npm...").start();
+    const raw = new RawGraph();
+    const visited = new Set<string>();
+    const maxDepth = Number(opts.depth);
+
+    for (const pkg of opts.packages) {
+      spinner.text = `Crawling ${pkg}... (${visited.size} packages seen)`;
+      await crawlPackage(pkg, raw, visited, maxDepth);
+    }
+
+    const snapshot = raw.toSnapshot({
+      name: opts.name,
+      incident: opts.incident,
+      capturedAt: new Date().toISOString(),
+      roots: opts.packages,
+      provenance:
+        "Captured from the public npm registry API with `hyperdefense snapshot`. " +
+        "Real registry data, not synthetic: package metadata, maintainer lists, " +
+        "and publish timestamps are exactly as npm served them at capturedAt.",
+    });
+    await saveSnapshot(snapshot, opts.out);
+
+    const c = raw.counts();
+    spinner.succeed(
+      `Captured ${c.packages} packages, ${c.maintainers} maintainers, ` +
+        `${c.versions} versions, ${c.dependencies} dependency edges -> ${opts.out}`,
+    );
+    console.log(
+      chalk.dim(
+        `\n  Replay it offline with:\n` +
+          chalk.cyan(`    npm run dev -- ingest --fixture ${opts.out}\n`),
+      ),
+    );
+  });
+
+program
   .command("ingest")
   .description("Ingest npm packages into HydraDB")
   .option("-p, --packages <names...>", "specific packages to ingest")
+  .option(
+    "-f, --fixture <path>",
+    "replay a saved snapshot instead of hitting the network",
+  )
   .option(
     "-c, --count <number>",
     "number of seed packages to ingest",
@@ -167,6 +223,37 @@ program
   .action(async (opts) => {
     const spinner = ora("Initializing schema...").start();
     await initSchema();
+
+    // Fixture path: deterministic, offline, no npm calls.
+    if (opts.fixture) {
+      spinner.text = `Loading fixture ${opts.fixture}...`;
+      const snapshot = await loadSnapshot(opts.fixture);
+      const registry = new IdRegistry(defaultRegistryPath());
+      await registry.load();
+      const buffer = new IngestBuffer(registry);
+      replaySnapshot(snapshot, buffer);
+
+      const fc = buffer.counts();
+      spinner.text = `Writing ${fc.packages} packages to HydraDB...`;
+      await buffer.flush();
+      await registry.save();
+
+      spinner.succeed(
+        `Replayed "${snapshot.meta.name}" (captured ${snapshot.meta.capturedAt}): ` +
+          `${fc.packages} packages, ${fc.maintainers} maintainers, ` +
+          `${fc.versions} versions | edges: ${fc.dependencyEdges} DEPENDS_ON, ` +
+          `${fc.reverseDependencyEdges} DEPENDED_ON_BY, ${fc.publishesEdges} PUBLISHES`,
+      );
+      const hint = buffer.widestBlastTarget();
+      if (hint) {
+        console.log(
+          chalk.dim(`\n  Most-depended-on package in this graph:\n`) +
+            chalk.cyan(`    npm run dev -- blast ${hint}\n`),
+        );
+      }
+      await closeConnection();
+      return;
+    }
 
     const packages = opts.packages ?? SEED_PACKAGES.slice(0, Number(opts.count));
     const maxDepth = Number(opts.depth);
@@ -268,9 +355,31 @@ program
       );
     }
 
+    // The headline comparison: a conventional scanner walks require() graphs
+    // and stops at the dependency count. Modelling maintainer accounts as graph
+    // nodes is what surfaces the rest, and the gap between the two numbers is
+    // the exposure every dependency-only tool misses.
+    const depOnly = result.downstream.length;
+    const withMaintainers = result.totalAffected;
+    const missed = withMaintainers - depOnly;
+
+    console.log(chalk.bold("\n  ─────────────────────────────────────────"));
     console.log(
-      chalk.red.bold(`\n  Total affected: ${result.totalAffected} packages\n`),
+      `  Dependency layer alone:   ${chalk.yellow(String(depOnly))} package${depOnly === 1 ? "" : "s"}`,
     );
+    console.log(
+      `  + maintainer layer:       ${chalk.red.bold(String(withMaintainers))} package${withMaintainers === 1 ? "" : "s"}`,
+    );
+    if (missed > 0) {
+      const factor = depOnly > 0 ? (withMaintainers / depOnly).toFixed(1) : null;
+      console.log(
+        chalk.dim(
+          `  ${missed} package${missed === 1 ? "" : "s"} a dependency-only scanner misses` +
+            (factor ? ` (${factor}x)` : ""),
+        ),
+      );
+    }
+    console.log(chalk.bold("  ─────────────────────────────────────────\n"));
 
     await closeConnection();
   });

@@ -1,0 +1,1847 @@
+{
+  "meta": {
+    "name": "TanStack May 2026 compromise",
+    "incident": "2026-05-11: 84 malicious versions across 42 @tanstack packages published via a breached CI pipeline; worm self-propagated to 160+ npm/PyPI packages by republishing everything compromised maintainers owned",
+    "capturedAt": "2026-08-17T14:56:39.437Z",
+    "roots": [
+      "@tanstack/react-router",
+      "@tanstack/react-query",
+      "@tanstack/router-plugin"
+    ],
+    "provenance": "Captured from the public npm registry API with `hyperdefense snapshot`. Real registry data, not synthetic: package metadata, maintainer lists, and publish timestamps are exactly as npm served them at capturedAt."
+  },
+  "packages": [
+    {
+      "name": "@babel/code-frame",
+      "description": "Generate errors that contain a code frame that point to source locations.",
+      "latestVersion": "8.0.0"
+    },
+    {
+      "name": "@babel/compat-data",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "@babel/core",
+      "description": "Babel compiler core.",
+      "latestVersion": "8.0.1"
+    },
+    {
+      "name": "@babel/generator",
+      "description": "Turns an AST into code.",
+      "latestVersion": "8.0.0"
+    },
+    {
+      "name": "@babel/helper-compilation-targets",
+      "description": "Helper functions on Babel compilation targets",
+      "latestVersion": "8.0.0"
+    },
+    {
+      "name": "@babel/helper-globals",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "@babel/helper-string-parser",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "@babel/helper-validator-identifier",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "@babel/helper-validator-option",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "@babel/helpers",
+      "description": "Collection of helper functions used by Babel transforms.",
+      "latestVersion": "8.0.0"
+    },
+    {
+      "name": "@babel/parser",
+      "description": "A JavaScript parser",
+      "latestVersion": "8.0.4"
+    },
+    {
+      "name": "@babel/template",
+      "description": "Generate an AST from a string template.",
+      "latestVersion": "8.0.0"
+    },
+    {
+      "name": "@babel/traverse",
+      "description": "The Babel Traverse module maintains the overall tree state, and is responsible for replacing, removing, and adding nodes",
+      "latestVersion": "8.0.4"
+    },
+    {
+      "name": "@babel/types",
+      "description": "Babel Types is a Lodash-esque utility library for AST nodes",
+      "latestVersion": "8.0.4"
+    },
+    {
+      "name": "@jridgewell/gen-mapping",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "@jridgewell/remapping",
+      "description": "Remap sequential sourcemaps through transformations to point at the original source code",
+      "latestVersion": "2.3.5"
+    },
+    {
+      "name": "@jridgewell/sourcemap-codec",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "@jridgewell/trace-mapping",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "@tanstack/history",
+      "description": "Modern and scalable routing for React applications",
+      "latestVersion": "1.162.1"
+    },
+    {
+      "name": "@tanstack/query-core",
+      "description": "The framework agnostic core that powers TanStack Query",
+      "latestVersion": "5.101.4"
+    },
+    {
+      "name": "@tanstack/react-query",
+      "description": "Hooks for managing, caching and syncing asynchronous and remote data in React",
+      "latestVersion": "5.101.4"
+    },
+    {
+      "name": "@tanstack/react-router",
+      "description": "Modern and scalable routing for React applications",
+      "latestVersion": "1.170.29"
+    },
+    {
+      "name": "@tanstack/react-store",
+      "description": "Framework agnostic type-safe store w/ reactive framework adapters",
+      "latestVersion": "0.11.1"
+    },
+    {
+      "name": "@tanstack/router-core",
+      "description": "Modern and scalable routing for React applications",
+      "latestVersion": "1.171.24"
+    },
+    {
+      "name": "@tanstack/router-generator",
+      "description": "Modern and scalable routing for React applications",
+      "latestVersion": "1.167.30"
+    },
+    {
+      "name": "@tanstack/router-plugin",
+      "description": "Modern and scalable routing for React applications",
+      "latestVersion": "1.168.32"
+    },
+    {
+      "name": "@tanstack/router-utils",
+      "description": "Modern and scalable routing for React applications",
+      "latestVersion": "1.162.2"
+    },
+    {
+      "name": "@tanstack/store",
+      "description": "Framework agnostic type-safe store w/ reactive framework adapters",
+      "latestVersion": "0.11.1"
+    },
+    {
+      "name": "@tanstack/virtual-file-routes",
+      "description": "Modern and scalable routing for React applications",
+      "latestVersion": "1.162.0"
+    },
+    {
+      "name": "@types/gensync",
+      "description": "TypeScript definitions for gensync",
+      "latestVersion": "1.0.5"
+    },
+    {
+      "name": "@types/jsesc",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "ansis",
+      "description": "ANSI color lib",
+      "latestVersion": "4.3.1"
+    },
+    {
+      "name": "babel-dead-code-elimination",
+      "description": "Composable primitives for dead code elimination in Babel",
+      "latestVersion": "2.0.0"
+    },
+    {
+      "name": "browserslist",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "chokidar",
+      "description": "Minimal and efficient cross-platform file watching library",
+      "latestVersion": "5.0.0"
+    },
+    {
+      "name": "convert-source-map",
+      "description": "Converts a source-map from/to  different formats and allows adding/changing properties.",
+      "latestVersion": "2.0.0"
+    },
+    {
+      "name": "cookie-es",
+      "description": "<!-- automd:badges bundlejs packagephobia codecov -->",
+      "latestVersion": "3.1.1"
+    },
+    {
+      "name": "diff",
+      "description": "A JavaScript text diff implementation.",
+      "latestVersion": "9.0.0"
+    },
+    {
+      "name": "empathic",
+      "description": "A set of small and fast Node.js utilities to understand your pathing needs.",
+      "latestVersion": "2.0.1"
+    },
+    {
+      "name": "fdir",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "gensync",
+      "description": "Allows users to use generators in order to write common functions that can be both sync or async.",
+      "latestVersion": "1.0.0-beta.2"
+    },
+    {
+      "name": "import-meta-resolve",
+      "description": "Resolve things like Node.js — ponyfill for `import.meta.resolve`",
+      "latestVersion": "4.2.0"
+    },
+    {
+      "name": "isbot",
+      "description": "🤖/👨‍🦰 Recognise bots/crawlers/spiders using the user agent string.",
+      "latestVersion": "5.2.1"
+    },
+    {
+      "name": "jiti",
+      "description": "Runtime typescript and ESM support for Node.js",
+      "latestVersion": "2.7.0"
+    },
+    {
+      "name": "js-tokens",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "jsesc",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "json5",
+      "description": "JSON for Humans",
+      "latestVersion": "2.2.3"
+    },
+    {
+      "name": "lru-cache",
+      "description": "",
+      "latestVersion": ""
+    },
+    {
+      "name": "magic-string",
+      "description": "Modify strings, generate sourcemaps",
+      "latestVersion": "1.2.0"
+    },
+    {
+      "name": "obug",
+      "description": "A lightweight JavaScript debugging utility, forked from debug, featuring TypeScript and ESM support.",
+      "latestVersion": "2.1.4"
+    },
+    {
+      "name": "pathe",
+      "description": "Universal filesystem path utils",
+      "latestVersion": "2.0.3"
+    },
+    {
+      "name": "picomatch",
+      "description": "Blazing fast and accurate glob matcher written in JavaScript, with no dependencies and full support for standard and extended Bash glob features, including braces, extglobs, POSIX brackets, and regular expressions.",
+      "latestVersion": "4.0.5"
+    },
+    {
+      "name": "prettier",
+      "description": "Prettier is an opinionated code formatter",
+      "latestVersion": "3.9.6"
+    },
+    {
+      "name": "readdirp",
+      "description": "Recursive version of fs.readdir with small RAM & CPU footprint",
+      "latestVersion": "5.1.1"
+    },
+    {
+      "name": "semver",
+      "description": "The semantic version parser used by npm.",
+      "latestVersion": "7.8.5"
+    },
+    {
+      "name": "seroval",
+      "description": "Stringify JS values",
+      "latestVersion": "1.6.2"
+    },
+    {
+      "name": "seroval-plugins",
+      "description": "Stringify JS values",
+      "latestVersion": "1.6.2"
+    },
+    {
+      "name": "tinyglobby",
+      "description": "A fast and minimal alternative to globby and fast-glob",
+      "latestVersion": "0.2.17"
+    },
+    {
+      "name": "unplugin",
+      "description": "Unified plugin system for build tools",
+      "latestVersion": "3.3.0"
+    },
+    {
+      "name": "use-sync-external-store",
+      "description": "Backwards compatible shim for React's useSyncExternalStore. Works with any React that supports hooks.",
+      "latestVersion": "1.6.0"
+    },
+    {
+      "name": "webpack-virtual-modules",
+      "description": "Webpack Virtual Modules",
+      "latestVersion": "0.6.2"
+    },
+    {
+      "name": "zod",
+      "description": "TypeScript-first schema declaration and validation library with static type inference",
+      "latestVersion": "4.4.3"
+    }
+  ],
+  "maintainers": [
+    {
+      "username": "alangpierce",
+      "email": "alangpierce@gmail.com"
+    },
+    {
+      "username": "alemtuzlak",
+      "email": "t.zlak97@gmail.com"
+    },
+    {
+      "username": "antfu",
+      "email": "anthonyfu117@hotmail.com"
+    },
+    {
+      "username": "aseemk",
+      "email": "aseem.kishore@gmail.com"
+    },
+    {
+      "username": "azz",
+      "email": "lucas@azzola.dev"
+    },
+    {
+      "username": "colinhacks",
+      "email": "colinmcd94@gmail.com"
+    },
+    {
+      "username": "danez",
+      "email": "npm@tschinder.de"
+    },
+    {
+      "username": "danielroe",
+      "email": "daniel@roe.dev"
+    },
+    {
+      "username": "doowb",
+      "email": "brian.woodward@gmail.com"
+    },
+    {
+      "username": "duailibe",
+      "email": "lucasds@gmail.com"
+    },
+    {
+      "username": "existentialism",
+      "email": "bng412@gmail.com"
+    },
+    {
+      "username": "explodingcabbage",
+      "email": "markrobertamery+npm@gmail.com"
+    },
+    {
+      "username": "fisker",
+      "email": "lionkay@gmail.com"
+    },
+    {
+      "username": "gorangajic",
+      "email": "fero.null@gmail.com"
+    },
+    {
+      "username": "hzoo",
+      "email": "hi@henryzoo.com"
+    },
+    {
+      "username": "ikatyang",
+      "email": "ikatyang@gmail.com"
+    },
+    {
+      "username": "jlhwung",
+      "email": "jlhwung@gmail.com"
+    },
+    {
+      "username": "jlongster",
+      "email": "longster@gmail.com"
+    },
+    {
+      "username": "jonschlinkert",
+      "email": "github@sellside.com"
+    },
+    {
+      "username": "jordanbtucker",
+      "email": "jordanbtucker@gmail.com"
+    },
+    {
+      "username": "jridgewell",
+      "email": "justin+npm@ridgewell.name"
+    },
+    {
+      "username": "kevinvandy",
+      "email": "kevinvandy656@gmail.com"
+    },
+    {
+      "username": "kpdecker",
+      "email": "kpdecker@gmail.com"
+    },
+    {
+      "username": "loganfsmyth",
+      "email": "loganfsmyth@gmail.com"
+    },
+    {
+      "username": "lukeed",
+      "email": "luke@lukeed.com"
+    },
+    {
+      "username": "lxsmnsyc",
+      "email": "alexis.munsayac@gmail.com"
+    },
+    {
+      "username": "lydell",
+      "email": "simon.lydell@gmail.com"
+    },
+    {
+      "username": "mourner",
+      "email": "agafonkin@gmail.com"
+    },
+    {
+      "username": "mrmlnc",
+      "email": "dmalinochkin@rambler.ru"
+    },
+    {
+      "username": "nicolo-ribaudo",
+      "email": "hello+npm@nicr.dev"
+    },
+    {
+      "username": "npm-cli-ops",
+      "email": "npm-cli+bot@github.com"
+    },
+    {
+      "username": "omrilotan",
+      "email": "omrilotan@hotmail.com"
+    },
+    {
+      "username": "paulmillr",
+      "email": "paul@paulmillr.com"
+    },
+    {
+      "username": "pcattori",
+      "email": "pcattori@gmail.com"
+    },
+    {
+      "username": "phated",
+      "email": "blaine.bublitz@gmail.com"
+    },
+    {
+      "username": "pi0",
+      "email": "pyapar@gmail.com"
+    },
+    {
+      "username": "prettier-bot",
+      "email": "prettier-bot@d0d0.com"
+    },
+    {
+      "username": "react-bot",
+      "email": "react-core@meta.com"
+    },
+    {
+      "username": "reggi",
+      "email": "reggi@github.com"
+    },
+    {
+      "username": "rich_harris",
+      "email": "richard.a.harris@gmail.com"
+    },
+    {
+      "username": "saquibkhan",
+      "email": "saquibkhan@github.com"
+    },
+    {
+      "username": "schiller-manuel",
+      "email": "meisterpink@gmail.com"
+    },
+    {
+      "username": "sosukesuzuki",
+      "email": "aosukeke@gmail.com"
+    },
+    {
+      "username": "suchipi",
+      "email": "me@suchipi.com"
+    },
+    {
+      "username": "superchupu",
+      "email": "madeline@superchupu.dev"
+    },
+    {
+      "username": "sxzz",
+      "email": "npm@sxzz.moe"
+    },
+    {
+      "username": "tannerlinsley",
+      "email": "tannerlinsley@gmail.com"
+    },
+    {
+      "username": "thlorenz",
+      "email": "thlorenz10@gmail.com"
+    },
+    {
+      "username": "thorn0",
+      "email": "georgii.dolzhykov@gmail.com"
+    },
+    {
+      "username": "types",
+      "email": "ts-npm-types@microsoft.com"
+    },
+    {
+      "username": "vicvlas",
+      "email": "victor.vlasenko@sysgears.com"
+    },
+    {
+      "username": "vjeux",
+      "email": "vjeuxx@gmail.com"
+    },
+    {
+      "username": "webdiscus",
+      "email": "biodiscus@gmail.com"
+    },
+    {
+      "username": "wooorm",
+      "email": "tituswormer@gmail.com"
+    }
+  ],
+  "versions": [
+    {
+      "package": "@babel/code-frame",
+      "version": "8.0.0",
+      "publishedAt": "2026-06-16T13:32:12.341Z"
+    },
+    {
+      "package": "@babel/core",
+      "version": "8.0.1",
+      "publishedAt": "2026-06-17T09:44:07.576Z"
+    },
+    {
+      "package": "@babel/generator",
+      "version": "8.0.0",
+      "publishedAt": "2026-06-16T13:33:06.536Z"
+    },
+    {
+      "package": "@babel/helper-compilation-targets",
+      "version": "8.0.0",
+      "publishedAt": "2026-06-16T13:32:12.251Z"
+    },
+    {
+      "package": "@babel/helpers",
+      "version": "8.0.0",
+      "publishedAt": "2026-06-16T13:33:12.822Z"
+    },
+    {
+      "package": "@babel/parser",
+      "version": "8.0.4",
+      "publishedAt": "2026-07-09T08:49:47.215Z"
+    },
+    {
+      "package": "@babel/template",
+      "version": "8.0.0",
+      "publishedAt": "2026-06-16T13:33:09.318Z"
+    },
+    {
+      "package": "@babel/traverse",
+      "version": "8.0.4",
+      "publishedAt": "2026-07-09T08:49:49.989Z"
+    },
+    {
+      "package": "@babel/types",
+      "version": "8.0.4",
+      "publishedAt": "2026-07-09T08:49:44.644Z"
+    },
+    {
+      "package": "@jridgewell/remapping",
+      "version": "2.3.5",
+      "publishedAt": "2025-08-12T06:43:35.321Z"
+    },
+    {
+      "package": "@tanstack/history",
+      "version": "1.162.1",
+      "publishedAt": "2026-08-06T13:45:51.337Z"
+    },
+    {
+      "package": "@tanstack/query-core",
+      "version": "5.101.4",
+      "publishedAt": "2026-07-21T13:04:00.391Z"
+    },
+    {
+      "package": "@tanstack/react-query",
+      "version": "5.101.4",
+      "publishedAt": "2026-07-21T13:04:07.544Z"
+    },
+    {
+      "package": "@tanstack/react-router",
+      "version": "1.170.29",
+      "publishedAt": "2026-08-14T22:14:57.435Z"
+    },
+    {
+      "package": "@tanstack/react-store",
+      "version": "0.11.1",
+      "publishedAt": "2026-08-05T18:30:19.505Z"
+    },
+    {
+      "package": "@tanstack/router-core",
+      "version": "1.171.24",
+      "publishedAt": "2026-08-14T22:14:56.040Z"
+    },
+    {
+      "package": "@tanstack/router-generator",
+      "version": "1.167.30",
+      "publishedAt": "2026-08-14T22:13:56.606Z"
+    },
+    {
+      "package": "@tanstack/router-plugin",
+      "version": "1.168.32",
+      "publishedAt": "2026-08-14T22:14:56.646Z"
+    },
+    {
+      "package": "@tanstack/router-utils",
+      "version": "1.162.2",
+      "publishedAt": "2026-06-05T20:15:02.142Z"
+    },
+    {
+      "package": "@tanstack/store",
+      "version": "0.11.1",
+      "publishedAt": "2026-08-05T18:31:08.124Z"
+    },
+    {
+      "package": "@tanstack/virtual-file-routes",
+      "version": "1.162.0",
+      "publishedAt": "2026-05-15T19:28:06.633Z"
+    },
+    {
+      "package": "@types/gensync",
+      "version": "1.0.5",
+      "publishedAt": "2026-05-01T22:15:28.796Z"
+    },
+    {
+      "package": "ansis",
+      "version": "4.3.1",
+      "publishedAt": "2026-05-31T16:34:19.692Z"
+    },
+    {
+      "package": "babel-dead-code-elimination",
+      "version": "2.0.0",
+      "publishedAt": "2026-08-12T14:35:37.595Z"
+    },
+    {
+      "package": "chokidar",
+      "version": "5.0.0",
+      "publishedAt": "2025-11-25T23:28:06.854Z"
+    },
+    {
+      "package": "convert-source-map",
+      "version": "2.0.0",
+      "publishedAt": "2022-10-17T22:06:48.628Z"
+    },
+    {
+      "package": "cookie-es",
+      "version": "3.1.1",
+      "publishedAt": "2026-03-27T00:31:47.436Z"
+    },
+    {
+      "package": "diff",
+      "version": "9.0.0",
+      "publishedAt": "2026-04-13T12:39:24.498Z"
+    },
+    {
+      "package": "empathic",
+      "version": "2.0.1",
+      "publishedAt": "2026-05-07T19:03:15.326Z"
+    },
+    {
+      "package": "gensync",
+      "version": "1.0.0-beta.2",
+      "publishedAt": "2020-10-27T20:43:40.443Z"
+    },
+    {
+      "package": "import-meta-resolve",
+      "version": "4.2.0",
+      "publishedAt": "2025-08-29T18:46:15.488Z"
+    },
+    {
+      "package": "isbot",
+      "version": "5.2.1",
+      "publishedAt": "2026-07-14T11:09:40.604Z"
+    },
+    {
+      "package": "jiti",
+      "version": "2.7.0",
+      "publishedAt": "2026-05-05T21:02:47.918Z"
+    },
+    {
+      "package": "json5",
+      "version": "2.2.3",
+      "publishedAt": "2022-12-31T17:11:32.047Z"
+    },
+    {
+      "package": "magic-string",
+      "version": "1.2.0",
+      "publishedAt": "2026-08-13T06:15:34.738Z"
+    },
+    {
+      "package": "obug",
+      "version": "2.1.4",
+      "publishedAt": "2026-07-16T16:28:10.927Z"
+    },
+    {
+      "package": "pathe",
+      "version": "2.0.3",
+      "publishedAt": "2025-02-11T19:47:35.862Z"
+    },
+    {
+      "package": "picomatch",
+      "version": "4.0.5",
+      "publishedAt": "2026-07-02T16:47:23.026Z"
+    },
+    {
+      "package": "prettier",
+      "version": "3.9.6",
+      "publishedAt": "2026-07-21T05:51:53.987Z"
+    },
+    {
+      "package": "readdirp",
+      "version": "5.1.1",
+      "publishedAt": "2026-08-06T06:26:38.975Z"
+    },
+    {
+      "package": "semver",
+      "version": "7.8.5",
+      "publishedAt": "2026-06-19T18:32:48.972Z"
+    },
+    {
+      "package": "seroval",
+      "version": "1.6.2",
+      "publishedAt": "2026-08-04T03:38:06.289Z"
+    },
+    {
+      "package": "seroval-plugins",
+      "version": "1.6.2",
+      "publishedAt": "2026-08-04T03:38:05.640Z"
+    },
+    {
+      "package": "tinyglobby",
+      "version": "0.2.17",
+      "publishedAt": "2026-05-30T19:57:21.717Z"
+    },
+    {
+      "package": "unplugin",
+      "version": "3.3.0",
+      "publishedAt": "2026-06-29T05:20:57.069Z"
+    },
+    {
+      "package": "use-sync-external-store",
+      "version": "1.6.0",
+      "publishedAt": "2025-10-01T21:39:12.499Z"
+    },
+    {
+      "package": "webpack-virtual-modules",
+      "version": "0.6.2",
+      "publishedAt": "2024-06-04T15:49:39.434Z"
+    },
+    {
+      "package": "zod",
+      "version": "4.4.3",
+      "publishedAt": "2026-05-04T07:06:40.819Z"
+    }
+  ],
+  "dependencies": [
+    [
+      "@babel/code-frame",
+      "@babel/helper-validator-identifier"
+    ],
+    [
+      "@babel/code-frame",
+      "js-tokens"
+    ],
+    [
+      "@babel/core",
+      "@babel/code-frame"
+    ],
+    [
+      "@babel/core",
+      "@babel/generator"
+    ],
+    [
+      "@babel/core",
+      "@babel/helper-compilation-targets"
+    ],
+    [
+      "@babel/core",
+      "@babel/helpers"
+    ],
+    [
+      "@babel/core",
+      "@babel/parser"
+    ],
+    [
+      "@babel/core",
+      "@babel/template"
+    ],
+    [
+      "@babel/core",
+      "@babel/traverse"
+    ],
+    [
+      "@babel/core",
+      "@babel/types"
+    ],
+    [
+      "@babel/core",
+      "@types/gensync"
+    ],
+    [
+      "@babel/core",
+      "convert-source-map"
+    ],
+    [
+      "@babel/core",
+      "empathic"
+    ],
+    [
+      "@babel/core",
+      "gensync"
+    ],
+    [
+      "@babel/core",
+      "import-meta-resolve"
+    ],
+    [
+      "@babel/core",
+      "json5"
+    ],
+    [
+      "@babel/core",
+      "obug"
+    ],
+    [
+      "@babel/core",
+      "semver"
+    ],
+    [
+      "@babel/generator",
+      "@babel/parser"
+    ],
+    [
+      "@babel/generator",
+      "@babel/types"
+    ],
+    [
+      "@babel/generator",
+      "@jridgewell/gen-mapping"
+    ],
+    [
+      "@babel/generator",
+      "@jridgewell/trace-mapping"
+    ],
+    [
+      "@babel/generator",
+      "@types/jsesc"
+    ],
+    [
+      "@babel/generator",
+      "jsesc"
+    ],
+    [
+      "@babel/helper-compilation-targets",
+      "@babel/compat-data"
+    ],
+    [
+      "@babel/helper-compilation-targets",
+      "@babel/helper-validator-option"
+    ],
+    [
+      "@babel/helper-compilation-targets",
+      "browserslist"
+    ],
+    [
+      "@babel/helper-compilation-targets",
+      "lru-cache"
+    ],
+    [
+      "@babel/helper-compilation-targets",
+      "semver"
+    ],
+    [
+      "@babel/helpers",
+      "@babel/template"
+    ],
+    [
+      "@babel/helpers",
+      "@babel/types"
+    ],
+    [
+      "@babel/parser",
+      "@babel/types"
+    ],
+    [
+      "@babel/template",
+      "@babel/code-frame"
+    ],
+    [
+      "@babel/template",
+      "@babel/parser"
+    ],
+    [
+      "@babel/template",
+      "@babel/types"
+    ],
+    [
+      "@babel/traverse",
+      "@babel/code-frame"
+    ],
+    [
+      "@babel/traverse",
+      "@babel/generator"
+    ],
+    [
+      "@babel/traverse",
+      "@babel/helper-globals"
+    ],
+    [
+      "@babel/traverse",
+      "@babel/parser"
+    ],
+    [
+      "@babel/traverse",
+      "@babel/template"
+    ],
+    [
+      "@babel/traverse",
+      "@babel/types"
+    ],
+    [
+      "@babel/traverse",
+      "obug"
+    ],
+    [
+      "@babel/types",
+      "@babel/helper-string-parser"
+    ],
+    [
+      "@babel/types",
+      "@babel/helper-validator-identifier"
+    ],
+    [
+      "@jridgewell/remapping",
+      "@jridgewell/gen-mapping"
+    ],
+    [
+      "@jridgewell/remapping",
+      "@jridgewell/trace-mapping"
+    ],
+    [
+      "@tanstack/react-query",
+      "@tanstack/query-core"
+    ],
+    [
+      "@tanstack/react-router",
+      "@tanstack/history"
+    ],
+    [
+      "@tanstack/react-router",
+      "@tanstack/react-store"
+    ],
+    [
+      "@tanstack/react-router",
+      "@tanstack/router-core"
+    ],
+    [
+      "@tanstack/react-router",
+      "isbot"
+    ],
+    [
+      "@tanstack/react-store",
+      "@tanstack/store"
+    ],
+    [
+      "@tanstack/react-store",
+      "use-sync-external-store"
+    ],
+    [
+      "@tanstack/router-core",
+      "@tanstack/history"
+    ],
+    [
+      "@tanstack/router-core",
+      "cookie-es"
+    ],
+    [
+      "@tanstack/router-core",
+      "seroval"
+    ],
+    [
+      "@tanstack/router-core",
+      "seroval-plugins"
+    ],
+    [
+      "@tanstack/router-generator",
+      "@babel/types"
+    ],
+    [
+      "@tanstack/router-generator",
+      "@tanstack/router-core"
+    ],
+    [
+      "@tanstack/router-generator",
+      "@tanstack/router-utils"
+    ],
+    [
+      "@tanstack/router-generator",
+      "@tanstack/virtual-file-routes"
+    ],
+    [
+      "@tanstack/router-generator",
+      "jiti"
+    ],
+    [
+      "@tanstack/router-generator",
+      "magic-string"
+    ],
+    [
+      "@tanstack/router-generator",
+      "prettier"
+    ],
+    [
+      "@tanstack/router-generator",
+      "zod"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "@babel/core"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "@babel/template"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "@babel/types"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "@tanstack/router-core"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "@tanstack/router-generator"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "@tanstack/router-utils"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "chokidar"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "unplugin"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "zod"
+    ],
+    [
+      "@tanstack/router-utils",
+      "@babel/generator"
+    ],
+    [
+      "@tanstack/router-utils",
+      "@babel/parser"
+    ],
+    [
+      "@tanstack/router-utils",
+      "@babel/types"
+    ],
+    [
+      "@tanstack/router-utils",
+      "ansis"
+    ],
+    [
+      "@tanstack/router-utils",
+      "babel-dead-code-elimination"
+    ],
+    [
+      "@tanstack/router-utils",
+      "diff"
+    ],
+    [
+      "@tanstack/router-utils",
+      "pathe"
+    ],
+    [
+      "@tanstack/router-utils",
+      "tinyglobby"
+    ],
+    [
+      "babel-dead-code-elimination",
+      "@babel/core"
+    ],
+    [
+      "babel-dead-code-elimination",
+      "@babel/parser"
+    ],
+    [
+      "babel-dead-code-elimination",
+      "@babel/traverse"
+    ],
+    [
+      "babel-dead-code-elimination",
+      "@babel/types"
+    ],
+    [
+      "chokidar",
+      "readdirp"
+    ],
+    [
+      "magic-string",
+      "@jridgewell/sourcemap-codec"
+    ],
+    [
+      "tinyglobby",
+      "fdir"
+    ],
+    [
+      "tinyglobby",
+      "picomatch"
+    ],
+    [
+      "unplugin",
+      "@jridgewell/remapping"
+    ],
+    [
+      "unplugin",
+      "picomatch"
+    ],
+    [
+      "unplugin",
+      "webpack-virtual-modules"
+    ]
+  ],
+  "publishes": [
+    [
+      "alangpierce",
+      "magic-string"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/history"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/query-core"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/react-query"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/react-router"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/react-store"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/router-core"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/router-generator"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/router-plugin"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/router-utils"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/store"
+    ],
+    [
+      "alemtuzlak",
+      "@tanstack/virtual-file-routes"
+    ],
+    [
+      "antfu",
+      "magic-string"
+    ],
+    [
+      "antfu",
+      "unplugin"
+    ],
+    [
+      "aseemk",
+      "json5"
+    ],
+    [
+      "azz",
+      "prettier"
+    ],
+    [
+      "colinhacks",
+      "zod"
+    ],
+    [
+      "danez",
+      "picomatch"
+    ],
+    [
+      "danielroe",
+      "pathe"
+    ],
+    [
+      "doowb",
+      "picomatch"
+    ],
+    [
+      "duailibe",
+      "prettier"
+    ],
+    [
+      "existentialism",
+      "@babel/code-frame"
+    ],
+    [
+      "existentialism",
+      "@babel/core"
+    ],
+    [
+      "existentialism",
+      "@babel/generator"
+    ],
+    [
+      "existentialism",
+      "@babel/helper-compilation-targets"
+    ],
+    [
+      "existentialism",
+      "@babel/helpers"
+    ],
+    [
+      "existentialism",
+      "@babel/parser"
+    ],
+    [
+      "existentialism",
+      "@babel/template"
+    ],
+    [
+      "existentialism",
+      "@babel/traverse"
+    ],
+    [
+      "existentialism",
+      "@babel/types"
+    ],
+    [
+      "explodingcabbage",
+      "diff"
+    ],
+    [
+      "fisker",
+      "prettier"
+    ],
+    [
+      "gorangajic",
+      "isbot"
+    ],
+    [
+      "hzoo",
+      "@babel/code-frame"
+    ],
+    [
+      "hzoo",
+      "@babel/core"
+    ],
+    [
+      "hzoo",
+      "@babel/generator"
+    ],
+    [
+      "hzoo",
+      "@babel/helper-compilation-targets"
+    ],
+    [
+      "hzoo",
+      "@babel/helpers"
+    ],
+    [
+      "hzoo",
+      "@babel/parser"
+    ],
+    [
+      "hzoo",
+      "@babel/template"
+    ],
+    [
+      "hzoo",
+      "@babel/traverse"
+    ],
+    [
+      "hzoo",
+      "@babel/types"
+    ],
+    [
+      "ikatyang",
+      "prettier"
+    ],
+    [
+      "jlhwung",
+      "@babel/code-frame"
+    ],
+    [
+      "jlhwung",
+      "@babel/core"
+    ],
+    [
+      "jlhwung",
+      "@babel/generator"
+    ],
+    [
+      "jlhwung",
+      "@babel/helper-compilation-targets"
+    ],
+    [
+      "jlhwung",
+      "@babel/helpers"
+    ],
+    [
+      "jlhwung",
+      "@babel/parser"
+    ],
+    [
+      "jlhwung",
+      "@babel/template"
+    ],
+    [
+      "jlhwung",
+      "@babel/traverse"
+    ],
+    [
+      "jlhwung",
+      "@babel/types"
+    ],
+    [
+      "jlongster",
+      "prettier"
+    ],
+    [
+      "jonschlinkert",
+      "picomatch"
+    ],
+    [
+      "jordanbtucker",
+      "json5"
+    ],
+    [
+      "jridgewell",
+      "@jridgewell/remapping"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/history"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/query-core"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/react-query"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/react-router"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/react-store"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/router-core"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/router-generator"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/router-plugin"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/router-utils"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/store"
+    ],
+    [
+      "kevinvandy",
+      "@tanstack/virtual-file-routes"
+    ],
+    [
+      "kpdecker",
+      "diff"
+    ],
+    [
+      "loganfsmyth",
+      "gensync"
+    ],
+    [
+      "lukeed",
+      "empathic"
+    ],
+    [
+      "lxsmnsyc",
+      "seroval"
+    ],
+    [
+      "lxsmnsyc",
+      "seroval-plugins"
+    ],
+    [
+      "lydell",
+      "prettier"
+    ],
+    [
+      "mourner",
+      "magic-string"
+    ],
+    [
+      "mrmlnc",
+      "picomatch"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/code-frame"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/core"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/generator"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/helper-compilation-targets"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/helpers"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/parser"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/template"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/traverse"
+    ],
+    [
+      "nicolo-ribaudo",
+      "@babel/types"
+    ],
+    [
+      "npm-cli-ops",
+      "semver"
+    ],
+    [
+      "omrilotan",
+      "isbot"
+    ],
+    [
+      "paulmillr",
+      "chokidar"
+    ],
+    [
+      "paulmillr",
+      "readdirp"
+    ],
+    [
+      "pcattori",
+      "babel-dead-code-elimination"
+    ],
+    [
+      "phated",
+      "convert-source-map"
+    ],
+    [
+      "pi0",
+      "cookie-es"
+    ],
+    [
+      "pi0",
+      "jiti"
+    ],
+    [
+      "pi0",
+      "pathe"
+    ],
+    [
+      "prettier-bot",
+      "prettier"
+    ],
+    [
+      "react-bot",
+      "use-sync-external-store"
+    ],
+    [
+      "reggi",
+      "semver"
+    ],
+    [
+      "rich_harris",
+      "magic-string"
+    ],
+    [
+      "saquibkhan",
+      "semver"
+    ],
+    [
+      "schiller-manuel",
+      "seroval"
+    ],
+    [
+      "sosukesuzuki",
+      "prettier"
+    ],
+    [
+      "suchipi",
+      "prettier"
+    ],
+    [
+      "superchupu",
+      "tinyglobby"
+    ],
+    [
+      "sxzz",
+      "obug"
+    ],
+    [
+      "sxzz",
+      "unplugin"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/history"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/query-core"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/react-query"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/react-router"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/react-store"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/router-core"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/router-generator"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/router-plugin"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/router-utils"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/store"
+    ],
+    [
+      "tannerlinsley",
+      "@tanstack/virtual-file-routes"
+    ],
+    [
+      "thlorenz",
+      "convert-source-map"
+    ],
+    [
+      "thlorenz",
+      "readdirp"
+    ],
+    [
+      "thorn0",
+      "prettier"
+    ],
+    [
+      "types",
+      "@types/gensync"
+    ],
+    [
+      "vicvlas",
+      "webpack-virtual-modules"
+    ],
+    [
+      "vjeux",
+      "prettier"
+    ],
+    [
+      "webdiscus",
+      "ansis"
+    ],
+    [
+      "wooorm",
+      "import-meta-resolve"
+    ]
+  ],
+  "hasVersion": [
+    [
+      "@babel/code-frame",
+      "@babel/code-frame@8.0.0"
+    ],
+    [
+      "@babel/core",
+      "@babel/core@8.0.1"
+    ],
+    [
+      "@babel/generator",
+      "@babel/generator@8.0.0"
+    ],
+    [
+      "@babel/helper-compilation-targets",
+      "@babel/helper-compilation-targets@8.0.0"
+    ],
+    [
+      "@babel/helpers",
+      "@babel/helpers@8.0.0"
+    ],
+    [
+      "@babel/parser",
+      "@babel/parser@8.0.4"
+    ],
+    [
+      "@babel/template",
+      "@babel/template@8.0.0"
+    ],
+    [
+      "@babel/traverse",
+      "@babel/traverse@8.0.4"
+    ],
+    [
+      "@babel/types",
+      "@babel/types@8.0.4"
+    ],
+    [
+      "@jridgewell/remapping",
+      "@jridgewell/remapping@2.3.5"
+    ],
+    [
+      "@tanstack/history",
+      "@tanstack/history@1.162.1"
+    ],
+    [
+      "@tanstack/query-core",
+      "@tanstack/query-core@5.101.4"
+    ],
+    [
+      "@tanstack/react-query",
+      "@tanstack/react-query@5.101.4"
+    ],
+    [
+      "@tanstack/react-router",
+      "@tanstack/react-router@1.170.29"
+    ],
+    [
+      "@tanstack/react-store",
+      "@tanstack/react-store@0.11.1"
+    ],
+    [
+      "@tanstack/router-core",
+      "@tanstack/router-core@1.171.24"
+    ],
+    [
+      "@tanstack/router-generator",
+      "@tanstack/router-generator@1.167.30"
+    ],
+    [
+      "@tanstack/router-plugin",
+      "@tanstack/router-plugin@1.168.32"
+    ],
+    [
+      "@tanstack/router-utils",
+      "@tanstack/router-utils@1.162.2"
+    ],
+    [
+      "@tanstack/store",
+      "@tanstack/store@0.11.1"
+    ],
+    [
+      "@tanstack/virtual-file-routes",
+      "@tanstack/virtual-file-routes@1.162.0"
+    ],
+    [
+      "@types/gensync",
+      "@types/gensync@1.0.5"
+    ],
+    [
+      "ansis",
+      "ansis@4.3.1"
+    ],
+    [
+      "babel-dead-code-elimination",
+      "babel-dead-code-elimination@2.0.0"
+    ],
+    [
+      "chokidar",
+      "chokidar@5.0.0"
+    ],
+    [
+      "convert-source-map",
+      "convert-source-map@2.0.0"
+    ],
+    [
+      "cookie-es",
+      "cookie-es@3.1.1"
+    ],
+    [
+      "diff",
+      "diff@9.0.0"
+    ],
+    [
+      "empathic",
+      "empathic@2.0.1"
+    ],
+    [
+      "gensync",
+      "gensync@1.0.0-beta.2"
+    ],
+    [
+      "import-meta-resolve",
+      "import-meta-resolve@4.2.0"
+    ],
+    [
+      "isbot",
+      "isbot@5.2.1"
+    ],
+    [
+      "jiti",
+      "jiti@2.7.0"
+    ],
+    [
+      "json5",
+      "json5@2.2.3"
+    ],
+    [
+      "magic-string",
+      "magic-string@1.2.0"
+    ],
+    [
+      "obug",
+      "obug@2.1.4"
+    ],
+    [
+      "pathe",
+      "pathe@2.0.3"
+    ],
+    [
+      "picomatch",
+      "picomatch@4.0.5"
+    ],
+    [
+      "prettier",
+      "prettier@3.9.6"
+    ],
+    [
+      "readdirp",
+      "readdirp@5.1.1"
+    ],
+    [
+      "semver",
+      "semver@7.8.5"
+    ],
+    [
+      "seroval",
+      "seroval@1.6.2"
+    ],
+    [
+      "seroval-plugins",
+      "seroval-plugins@1.6.2"
+    ],
+    [
+      "tinyglobby",
+      "tinyglobby@0.2.17"
+    ],
+    [
+      "unplugin",
+      "unplugin@3.3.0"
+    ],
+    [
+      "use-sync-external-store",
+      "use-sync-external-store@1.6.0"
+    ],
+    [
+      "webpack-virtual-modules",
+      "webpack-virtual-modules@0.6.2"
+    ],
+    [
+      "zod",
+      "zod@4.4.3"
+    ]
+  ]
+}
