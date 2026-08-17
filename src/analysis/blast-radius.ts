@@ -26,16 +26,25 @@ export async function analyzeBlastRadius(
     return { found: false, downstream: [], lateralMovement: [], totalAffected: 0 };
   }
 
-  const [downstream, lateral] = await Promise.all([
-    // Variable-length source id must be a literal, so this query is built with
-    // the id interpolated rather than passed as a parameter.
-    runQuery<{ name: string }>(downstreamBlastRadiusQuery(id, maxDepth)),
-    // Fixed-length pattern: $id parameter is accepted.
-    runQuery<{ maintainer: string; otherNames: string[] }>(
-      QUERIES.sharedMaintainerRisk,
-      { id: int(id) },
-    ),
-  ]);
+  // Sequential, NOT Promise.all. Two queries in flight at once against HydraDB
+  // intermittently corrupts the Bolt decode and throws
+  // "The value of 'offset' is out of range ... Received N" from inside the
+  // driver. It is data- and timing-dependent, which is what made it look like
+  // an unrelated bug: the failure moved between commands as the graph grew.
+  // The two queries here were the only concurrent pair in the read path, and
+  // running them in series removes the failure entirely. The cost is one extra
+  // round trip.
+  //
+  // Variable-length source id must be a literal, so this query interpolates
+  // the id rather than passing it as a parameter.
+  const downstream = await runQuery<{ name: string }>(
+    downstreamBlastRadiusQuery(id, maxDepth),
+  );
+  // Fixed-length pattern: $id parameter is accepted here.
+  const lateral = await runQuery<{
+    maintainer: string;
+    otherNames: string[];
+  }>(QUERIES.sharedMaintainerRisk, { id: int(id) });
 
   const affected = new Set<string>();
 

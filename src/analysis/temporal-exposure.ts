@@ -46,13 +46,15 @@ export async function analyzeTemporalExposure(
     };
   }
 
-  const [versions, consumers] = await Promise.all([
-    runQuery<{ version: string; publishedAt: string }>(
-      QUERIES.packageVersions,
-      { id: int(id) },
-    ),
-    runQuery<{ name: string }>(QUERIES.directConsumers, { id: int(id) }),
-  ]);
+  // Sequential, NOT Promise.all. See the note in blast-radius.ts: concurrent
+  // queries on the same connection intermittently corrupt the Bolt decode.
+  const versions = await runQuery<{ version: string; publishedAt: string }>(
+    QUERIES.packageVersions,
+    { id: int(id) },
+  );
+  const consumers = await runQuery<{ name: string }>(QUERIES.directConsumers, {
+    id: int(id),
+  });
 
   const inWindow = versions
     .map((v) => ({

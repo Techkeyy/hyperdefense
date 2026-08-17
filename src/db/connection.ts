@@ -112,14 +112,19 @@ export async function runQuery<T = Record<string, unknown>>(
 /**
  * Runs a query on a dedicated, short-lived driver that is closed immediately.
  *
- * Used for the `algo.*` path procedures. Those return Bolt `Path` values, and
- * the next query issued on the same connection afterwards fails to decode with
- * a Node buffer error ("The value of 'offset' is out of range ... Received N"),
- * which is a driver-side decode problem rather than anything wrong with the
- * following query. Closing and reopening the shared driver did not clear it, so
- * path queries get their own connection that is discarded straight after.
- * Costs one connection setup; keeps every other query on a connection that has
- * never seen a Path.
+ * Used for the `algo.*` path procedures, which return Bolt `Path` values.
+ *
+ * History worth keeping: this was introduced on the theory that Path values
+ * corrupted the shared connection, because a decode error
+ * ("The value of 'offset' is out of range ... Received N") kept appearing on
+ * the query after a path query. That theory was wrong. The actual cause was
+ * CONCURRENT queries on one connection (two `Promise.all` sites in the analysis
+ * layer); the failure simply moved around as timing and graph size changed,
+ * which made it look sequence-related. Those are sequential now, which is the
+ * real fix.
+ *
+ * This is kept anyway: path results are the least-exercised response type here,
+ * and one throwaway connection per path query is cheap insurance.
  */
 export async function runIsolatedQuery<T = Record<string, unknown>>(
   cypher: string,
