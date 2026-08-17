@@ -83,9 +83,19 @@ async function one(
 
 const SPECS: ProbeSpec[] = [
   {
-    id: "return-literal",
-    label: "RETURN literal",
-    matters: "baseline, proves the session executes statements at all",
+    id: "match-return",
+    label: "MATCH ... RETURN",
+    matters: "baseline read shape, the only one HydraDB advertises for rows",
+    run: async (d) => {
+      await one(d, `MATCH (n) RETURN n LIMIT 1`);
+      return { ok: true };
+    },
+  },
+  {
+    id: "bare-return",
+    label: "bare RETURN without MATCH",
+    matters:
+      "measured because assuming it works cost a full doctor run; anything computing a scalar without touching the graph must be restructured",
     run: async (d) => {
       const r = await one(d, "RETURN 1 AS ok");
       return { ok: toNum(r[0]?.ok) === 1 };
@@ -96,7 +106,9 @@ const SPECS: ProbeSpec[] = [
     label: "CREATE node with label and property",
     matters: "ingestion writes every package as a labelled node",
     run: async (d) => {
-      await one(d, `CREATE (n:${PROBE_LABEL} {k: $k}) RETURN n`, { k: "seed" });
+      // No trailing RETURN: mutations are issued as pure writes so a
+      // row-execution limit cannot make a working write look broken.
+      await one(d, `CREATE (n:${PROBE_LABEL} {k: $k})`, { k: "seed" });
       const r = await one(
         d,
         `MATCH (n:${PROBE_LABEL} {k: $k}) RETURN count(n) AS c`,
@@ -111,8 +123,8 @@ const SPECS: ProbeSpec[] = [
     matters:
       "ingestion re-visits shared dependencies constantly; without MERGE the graph fills with duplicates",
     run: async (d) => {
-      await one(d, `MERGE (n:${PROBE_LABEL} {k: $k}) RETURN n`, { k: "merge" });
-      await one(d, `MERGE (n:${PROBE_LABEL} {k: $k}) RETURN n`, { k: "merge" });
+      await one(d, `MERGE (n:${PROBE_LABEL} {k: $k})`, { k: "merge" });
+      await one(d, `MERGE (n:${PROBE_LABEL} {k: $k})`, { k: "merge" });
       const r = await one(
         d,
         `MATCH (n:${PROBE_LABEL} {k: $k}) RETURN count(n) AS c`,
@@ -127,12 +139,6 @@ const SPECS: ProbeSpec[] = [
     label: "typed relationship, single hop",
     matters: "DEPENDS_ON and PUBLISHES are typed edges",
     run: async (d) => {
-      await one(
-        d,
-        `MERGE (a:${PROBE_LABEL} {k:'c0'})
-         MERGE (b:${PROBE_LABEL} {k:'c1'})
-         MERGE (a)-[:${PROBE_REL}]->(b)`,
-      );
       const r = await one(
         d,
         `MATCH (:${PROBE_LABEL} {k:'c0'})-[:${PROBE_REL}]->(b) RETURN count(b) AS c`,
@@ -301,7 +307,8 @@ const SPECS: ProbeSpec[] = [
 /** Build a 5-node chain c0->c1->c2->c3->c4 for the traversal probes. */
 async function seedChain(driver: Driver): Promise<void> {
   for (let i = 0; i < 5; i++) {
-    await one(driver, `MERGE (n:${PROBE_LABEL} {k: $k}) RETURN n`, {
+    // Pure mutation, no RETURN. See create-node for why.
+    await one(driver, `MERGE (n:${PROBE_LABEL} {k: $k})`, {
       k: `c${i}`,
     });
   }
@@ -312,6 +319,38 @@ async function seedChain(driver: Driver): Promise<void> {
        MERGE (a)-[:${PROBE_REL}]->(b)`,
       { a: `c${i}`, b: `c${i + 1}` },
     );
+  }
+}
+
+/** CREATE-only fallback for a server that rejects MERGE. */
+async function seedChainFallback(driver: Driver): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    await one(driver, `CREATE (n:${PROBE_LABEL} {k: $k})`, { k: `c${i}` });
+  }
+  for (let i = 0; i < 4; i++) {
+    await one(
+      driver,
+      `MATCH (a:${PROBE_LABEL} {k: $a}), (b:${PROBE_LABEL} {k: $b})
+       CREATE (a)-[:${PROBE_REL}]->(b)`,
+      { a: `c${i}`, b: `c${i + 1}` },
+    );
+  }
+}
+
+/**
+ * Confirms the probe fixture actually exists. Without this a seeding failure
+ * makes every traversal probe report "unsupported" for the wrong reason, which
+ * would send the whole query-layer redesign down a false path.
+ */
+async function verifySeed(driver: Driver): Promise<boolean> {
+  try {
+    const r = await one(
+      driver,
+      `MATCH (n:${PROBE_LABEL}) RETURN count(n) AS c`,
+    );
+    return toNum(r[0]?.c) >= 5;
+  } catch {
+    return false;
   }
 }
 
@@ -339,10 +378,28 @@ export async function runProbes(
 
   const results: ProbeResult[] = [];
   try {
+    await cleanup(driver);
     try {
       await seedChain(driver);
     } catch {
-      // seeding may fail if writes are unsupported; probes report that
+      try {
+        await cleanup(driver);
+        await seedChainFallback(driver);
+      } catch {
+        // both write paths failed; verifySeed below reports it
+      }
+    }
+
+    const seeded = await verifySeed(driver);
+    if (!seeded) {
+      results.push({
+        id: "probe-fixture",
+        label: "probe fixture seeded",
+        matters:
+          "traversal probes are meaningless without it; treat every traversal row below as inconclusive rather than unsupported",
+        status: "wrong-result",
+        detail: "could not build the 5-node probe chain with MERGE or CREATE",
+      });
     }
 
     for (const spec of SPECS) {

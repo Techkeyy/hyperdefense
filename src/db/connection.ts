@@ -61,7 +61,11 @@ export async function probeConnection(
     d = buildDriver(uri, auth);
     const session = d.session();
     try {
-      await session.run("RETURN 1 AS ok");
+      // NOT `RETURN 1`. HydraDB rejects a bare RETURN with "row execution
+      // supports MATCH ... RETURN queries", which surfaces as a connection
+      // failure even though the socket and auth are fine. This shape executes
+      // on an empty graph and returns zero rows.
+      await session.run("MATCH (n) RETURN n LIMIT 1");
       return { ok: true };
     } finally {
       await session.close();
