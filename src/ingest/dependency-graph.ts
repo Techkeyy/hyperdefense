@@ -45,6 +45,7 @@ export class IngestBuffer {
   private maintainers = new Map<string, MaintainerRow>();
   private versions = new Map<string, VersionRow>();
   private dependsOn: EdgeRow[] = [];
+  private dependedOnBy: EdgeRow[] = [];
   private publishes: EdgeRow[] = [];
   private hasVersion: EdgeRow[] = [];
 
@@ -90,6 +91,14 @@ export class IngestBuffer {
       dst: int(this.registry.id("package", toPkg)),
       eid: int(this.registry.edgeId("DEPENDS_ON", fromPkg, toPkg)),
     });
+    // Materialise the reverse edge as well: blast radius has to traverse
+    // outward from the compromised package, and HydraDB's variable-length
+    // MATCH cannot walk an inbound pattern (the source must hold the id).
+    this.dependedOnBy.push({
+      src: int(this.registry.id("package", toPkg)),
+      dst: int(this.registry.id("package", fromPkg)),
+      eid: int(this.registry.edgeId("DEPENDED_ON_BY", toPkg, fromPkg)),
+    });
   }
 
   addPublishes(username: string, pkg: string): void {
@@ -125,6 +134,7 @@ export class IngestBuffer {
     await this.flushRows("maintainers", QUERIES.upsertMaintainers, [...this.maintainers.values()], batchSize);
     await this.flushRows("versions", QUERIES.upsertVersions, [...this.versions.values()], batchSize);
     await this.flushRows("dependency-edges", QUERIES.upsertDependencyEdges, this.dependsOn, batchSize);
+    await this.flushRows("reverse-dependency-edges", QUERIES.upsertReverseDependencyEdges, this.dependedOnBy, batchSize);
     await this.flushRows("publishes-edges", QUERIES.upsertPublishesEdges, this.publishes, batchSize);
     await this.flushRows("has-version-edges", QUERIES.upsertHasVersionEdges, this.hasVersion, batchSize);
   }

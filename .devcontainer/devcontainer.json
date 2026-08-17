@@ -3,6 +3,12 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/workspaces/hyperdefense",
+  // HydraDB suppresses internal errors over both Bolt and HTTP, logging the
+  // real cause server-side instead ("Bolt suppressed internal graph error").
+  // Docker access lets us read the sibling container's logs to see it.
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
   "forwardPorts": [7687, 8443, 9090],
   "portsAttributes": {
     "7687": { "label": "HydraDB Bolt" },

@@ -68,6 +68,23 @@ export const QUERIES = {
     MERGE (s)-[:DEPENDS_ON {id: row.eid}]->(d)
   `,
 
+  /**
+   * DEPENDED_ON_BY, dependency -> package (the reverse of DEPENDS_ON).
+   * Rows: { src, dst, eid }.
+   *
+   * Materialised deliberately. HydraDB's variable-length MATCH requires the
+   * edge's SOURCE node to carry a literal id (src/shard/query.rs: "variable-
+   * length MATCH requires a fixed source id"), so `(c {id: N})<-[:DEPENDS_ON*]-`
+   * is rejected: in an inbound pattern the source is the far, unidentified
+   * node. Blast radius must therefore traverse OUTWARD from the compromised
+   * package, which needs a real reverse edge to walk.
+   */
+  upsertReverseDependencyEdges: `
+    UNWIND $rows AS row
+    MATCH (s:Package {id: row.src}), (d:Package {id: row.dst})
+    MERGE (s)-[:DEPENDED_ON_BY {id: row.eid}]->(d)
+  `,
+
   /** PUBLISHES, maintainer -> package. Rows: { src, dst, eid }. */
   upsertPublishesEdges: `
     UNWIND $rows AS row
@@ -144,8 +161,11 @@ export function downstreamBlastRadiusQuery(
 ): string {
   const id = Math.max(0, Math.floor(sourceId));
   const d = Math.max(1, Math.min(20, Math.floor(maxDepth)));
+  // Walks the materialised reverse edge OUTWARD from the compromised package,
+  // because HydraDB requires the variable-length source to be the node holding
+  // the literal id. See upsertReverseDependencyEdges.
   return `
-    MATCH (c {id: ${id}})<-[:DEPENDS_ON*1..${d}]-(affected:Package)
+    MATCH (c {id: ${id}})-[:DEPENDED_ON_BY*1..${d}]->(affected:Package)
     RETURN affected.id AS id, affected.name AS name
   `;
 }

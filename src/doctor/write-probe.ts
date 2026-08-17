@@ -74,10 +74,21 @@ export async function runWriteProbe(): Promise<WriteProbeResult[]> {
       params: { id: A },
     },
     {
-      step: "8. traversal: reverse var-length *1..2 (literal source id)",
-      // Variable-length MATCH requires a fixed (literal) source id, not a param.
+      step: "8a. var-length INBOUND (expected to fail: source must hold the id)",
       query:
         "MATCH (c {id: 9002})<-[:DEPENDS_ON*1..2]-(x:Package) RETURN x.id AS id, x.name AS name",
+      params: {},
+    },
+    {
+      step: "8b. reverse edge write (DEPENDED_ON_BY)",
+      query:
+        "UNWIND $rows AS row MATCH (s:Package {id: row.src}), (d:Package {id: row.dst}) MERGE (s)-[:DEPENDED_ON_BY {id: row.eid}]->(d)",
+      params: { rows: [{ src: B, dst: A, eid: int(9006) }] },
+    },
+    {
+      step: "8c. var-length OUTBOUND on reverse edge (the blast-radius shape)",
+      query:
+        "MATCH (c {id: 9002})-[:DEPENDED_ON_BY*1..2]->(x:Package) RETURN x.id AS id, x.name AS name",
       params: {},
     },
     {
