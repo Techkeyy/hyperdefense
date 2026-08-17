@@ -1,4 +1,5 @@
 import neo4j, { type Driver, type Session, type AuthToken } from "neo4j-driver";
+import { runHttpQuery } from "./http-client.js";
 
 export interface HydraConfig {
   uri: string;
@@ -96,10 +97,33 @@ export function getSession(): Session {
   return getDriver().session();
 }
 
+/**
+ * Default transport is HTTP, not Bolt.
+ *
+ * The Bolt path intermittently throws a decoder error
+ * ("The value of 'offset' is out of range ... Received N") from inside
+ * neo4j-driver. It is triggered by concurrent queries and, separately, by
+ * larger responses, so it became more frequent as the graph grew: making
+ * queries sequential reduced it but response size alone still triggers it. It
+ * is a chunking incompatibility between the driver and HydraDB's Bolt server,
+ * not something fixable from here.
+ *
+ * The HTTP API is plain JSON with cursor pagination and no such decoder, so it
+ * is the reliable default. Set HYDRA_TRANSPORT=bolt to force the Bolt path,
+ * which is kept both as a fallback and because `doctor` uses it to probe the
+ * Bolt surface specifically.
+ */
+export function transport(): "http" | "bolt" {
+  return process.env.HYDRA_TRANSPORT === "bolt" ? "bolt" : "http";
+}
+
 export async function runQuery<T = Record<string, unknown>>(
   cypher: string,
   params: Record<string, unknown> = {},
 ): Promise<T[]> {
+  if (transport() === "http") {
+    return runHttpQuery<T>(cypher, params);
+  }
   const session = getSession();
   try {
     const result = await session.run(cypher, params);
@@ -130,6 +154,11 @@ export async function runIsolatedQuery<T = Record<string, unknown>>(
   cypher: string,
   params: Record<string, unknown> = {},
 ): Promise<T[]> {
+  // On HTTP there is no shared connection to protect, and the transport
+  // normalises paths into the same shape, so isolation is unnecessary.
+  if (transport() === "http") {
+    return runHttpQuery<T>(cypher, params);
+  }
   const config = getConfig();
   const strategyName = process.env.HYDRA_AUTH ?? "bearer";
   const found = AUTH_STRATEGIES.find((s) => s.name.startsWith(strategyName));

@@ -622,16 +622,39 @@ program
     const exposure = await analyzeTemporalExposure(
       registry,
       target,
-      "2026-05-01T00:00:00Z",
-      "2026-12-31T00:00:00Z",
+      // A tight window around the real TanStack compromise date, so the answer
+      // is a handful of releases rather than months of history.
+      "2026-05-11T00:00:00Z",
+      "2026-05-12T00:00:00Z",
     );
     console.log(
-      `  window ${exposure.windowDurationHours}h, ` +
-        `${exposure.versionsPublished.length} version(s) published inside it, ` +
+      `  ${exposure.versionsKnown} versions known, window ` +
+        `${exposure.windowDurationHours}h (the real compromise date)\n`,
+    );
+    if (exposure.lastCleanVersion) {
+      console.log(
+        chalk.green(`  last clean:    ${exposure.lastCleanVersion.version}`) +
+          chalk.dim(` (${exposure.lastCleanVersion.publishedAt})`),
+      );
+    }
+    if (exposure.firstSuspectVersion) {
+      console.log(
+        chalk.red.bold(
+          `  first suspect: ${exposure.firstSuspectVersion.version}`,
+        ) + chalk.dim(` (${exposure.firstSuspectVersion.publishedAt})`),
+      );
+    }
+    console.log(
+      `\n  ${exposure.versionsPublished.length} version(s) shipped inside the window, ` +
         `${exposure.consumersExposed.length} consumer(s) could have resolved them`,
     );
-    for (const v of exposure.versionsPublished) {
-      console.log(`    ${v.version} at ${v.publishedAt}`);
+    for (const v of exposure.versionsPublished.slice(0, 6)) {
+      console.log(chalk.dim(`    ${v.version} at ${v.publishedAt}`));
+    }
+    if (exposure.versionsPublished.length > 6) {
+      console.log(
+        chalk.dim(`    ... and ${exposure.versionsPublished.length - 6} more`),
+      );
     }
 
     // 4. Generate the fix.
