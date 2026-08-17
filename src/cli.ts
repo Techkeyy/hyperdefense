@@ -12,6 +12,15 @@ import {
   saveSnapshot,
   loadSnapshot,
 } from "./ingest/snapshot.js";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { buildPlan, toBlocklist } from "./remediate/plan.js";
+import {
+  renderOverrides,
+  renderWorkflow,
+  renderSummary,
+} from "./remediate/artifacts.js";
+import { verifyLockfile } from "./remediate/verify.js";
 import { SEED_PACKAGES } from "./ingest/npm-registry.js";
 import { analyzeBlastRadius } from "./analysis/blast-radius.js";
 import { analyzeLateralMovement } from "./analysis/lateral-movement.js";
@@ -382,6 +391,146 @@ program
     console.log(chalk.bold("  ─────────────────────────────────────────\n"));
 
     await closeConnection();
+  });
+
+program
+  .command("remediate <package>")
+  .description(
+    "Generate the fix: blocklist, npm overrides, and a CI gate workflow",
+  )
+  .option(
+    "--bad-versions <versions...>",
+    "versions named as malicious (blocked outright)",
+  )
+  .option(
+    "--safe-version <version>",
+    "known-good version to pin to; without it no override is generated",
+  )
+  .option("-o, --out <dir>", "write artifacts to this directory")
+  .action(async (packageName, opts) => {
+    const spinner = ora(`Building remediation for ${packageName}...`).start();
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+    const blast = await analyzeBlastRadius(registry, packageName);
+    spinner.stop();
+
+    if (!blast.found) {
+      console.log(
+        chalk.yellow(
+          `\n  "${packageName}" is not in the graph. Ingest it first.\n`,
+        ),
+      );
+      await closeConnection();
+      return;
+    }
+
+    const plan = buildPlan(packageName, blast, opts.badVersions ?? []);
+    const blocklist = toBlocklist(plan);
+    const overrides = renderOverrides(plan, opts.safeVersion);
+    const workflow = renderWorkflow(plan);
+
+    console.log(chalk.red.bold(`\n  REMEDIATION: ${packageName}\n`));
+    console.log(renderSummary(plan));
+
+    if (opts.out) {
+      const dir = opts.out as string;
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, "blocklist.json"),
+        `${JSON.stringify(blocklist, null, 2)}\n`,
+        "utf8",
+      );
+      await writeFile(join(dir, "supply-chain-gate.yml"), workflow, "utf8");
+      const written = ["blocklist.json", "supply-chain-gate.yml"];
+      if (overrides.applicable) {
+        await writeFile(join(dir, "overrides.json"), overrides.content, "utf8");
+        written.push("overrides.json");
+      }
+      console.log(chalk.green(`  Wrote ${written.join(", ")} to ${dir}\n`));
+    } else {
+      console.log(chalk.bold("  blocklist.json"));
+      console.log(chalk.dim(JSON.stringify(blocklist, null, 2)));
+      console.log(chalk.bold("\n  CI gate (supply-chain-gate.yml)"));
+      console.log(chalk.dim(workflow));
+    }
+
+    console.log(
+      overrides.applicable
+        ? chalk.bold("  npm overrides\n") +
+            chalk.dim(overrides.content) +
+            chalk.dim(`  ${overrides.note}\n`)
+        : chalk.yellow(`  ${overrides.note}\n`),
+    );
+
+    if (!opts.out) {
+      console.log(
+        chalk.dim(
+          `  Write these to disk with:\n` +
+            chalk.cyan(
+              `    npm run dev -- remediate ${packageName} --out .hyperdefense\n`,
+            ),
+        ),
+      );
+    }
+
+    await closeConnection();
+  });
+
+program
+  .command("verify")
+  .description(
+    "CI gate: fail the build if a blocked package version is in the lockfile",
+  )
+  .requiredOption("-b, --blocklist <path>", "blocklist.json from remediate")
+  .option("-l, --lockfile <path>", "path to package-lock.json", "package-lock.json")
+  .action(async (opts) => {
+    let result;
+    try {
+      result = await verifyLockfile(opts.blocklist, opts.lockfile);
+    } catch (err) {
+      console.error(
+        chalk.red(
+          `  verify could not run: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      );
+      process.exit(2); // distinct from a policy failure
+    }
+
+    console.log(
+      chalk.dim(
+        `\n  Scanned ${result.packagesScanned} resolved packages in ${opts.lockfile}\n`,
+      ),
+    );
+
+    if (result.reviewHits.length > 0) {
+      console.log(
+        chalk.yellow(
+          `  ${result.reviewHits.length} package(s) flagged for review (not blocking):`,
+        ),
+      );
+      for (const r of result.reviewHits.slice(0, 15)) {
+        const via = r.via?.length ? chalk.dim(` via @${r.via.join(", @")}`) : "";
+        console.log(`    ${r.package}@${r.version}${via}`);
+      }
+      if (result.reviewHits.length > 15) {
+        console.log(chalk.dim(`    ... and ${result.reviewHits.length - 15} more`));
+      }
+      console.log();
+    }
+
+    if (result.ok) {
+      console.log(chalk.green.bold("  PASS  no blocked versions resolved\n"));
+      return;
+    }
+
+    console.log(
+      chalk.red.bold(`  FAIL  ${result.violations.length} blocked version(s) resolved:\n`),
+    );
+    for (const v of result.violations) {
+      console.log(chalk.red(`    ${v.package}@${v.version}`) + chalk.dim(`  (${v.path})`));
+    }
+    console.log();
+    process.exit(1); // fails the CI check
   });
 
 program
