@@ -1,24 +1,27 @@
-import { runQuery } from "../db/connection.js";
+import { runIsolatedQuery } from "../db/connection.js";
 import type { IdRegistry } from "../db/id-registry.js";
 
 /**
- * Multi-source blast radius using HydraDB's native `algo.MSpaths`.
+ * HydraDB's native `algo.MSpaths` path procedure.
  *
- * The track's own framing is "a package is compromised at 09:00, which services
- * are exposed by 09:06", and real incidents are never one package: the May 2026
- * TanStack compromise published 84 malicious versions across 42 packages in six
- * minutes. Answering that with the ordinary traversal means N round trips in a
- * client-side loop, with the fan-out and the merge both done in TypeScript.
+ * Used for ONE question: given a compromise, how does the bad code reach a
+ * particular service. It returns the ordered chain, which names the
+ * intermediate package that pulls the code in and therefore where the link can
+ * be cut. A traversal returns a set and cannot answer that.
  *
- * MSpaths resolves many indexed sources in a single call inside the engine.
- * That is what the procedure exists for, and it is the query this project most
- * wants from HydraDB specifically.
+ * It is deliberately NOT used for reachability ("what is exposed"). Measured
+ * against the traversal on the same graph it reported 4 affected packages where
+ * the correct answer was 5, because it enumerates shortest paths per
+ * source-target pair and a set of shortest paths is not the set of reachable
+ * nodes. That is semantic, not a tuning knob. See multiBlastRadiusViaMSpaths
+ * below, kept deprecated with the measurement attached.
  *
- * Two hard requirements, both learned from the engine source:
- *  - the statement must START with `CALL algo.`, otherwise
- *    `is_native_path_procedure` does not match, the statement falls through to
- *    the generic clause walker, and CALL is not in that walker's allowed set
+ * Three requirements, all learned the hard way:
+ *  - the statement must START with `CALL algo.`, or `is_native_path_procedure`
+ *    does not match, the statement falls through to the generic clause walker,
+ *    and CALL is not in that walker's allowed set
  *  - sources are INDEXED SELECTORS (label + property + values), not bound nodes
+ *  - `pathCount` defaults to 1, so it must be set explicitly
  */
 
 /**
@@ -144,7 +147,7 @@ export async function attackPaths(
 
   let rows: Array<{ path: DriverPath }>;
   try {
-    rows = await runQuery<{ path: DriverPath }>(query);
+    rows = await runIsolatedQuery<{ path: DriverPath }>(query);
   } catch {
     return { paths: [], native: false };
   }
@@ -178,13 +181,6 @@ function cypherString(value: string): string {
   return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 }
 
-/**
- * Blast radius for many compromised packages at once.
- *
- * Returns `native: false` and an empty result if the procedure is unavailable,
- * so the caller can fall back to per-package traversal rather than fail. The
- * working path is never removed in favour of the faster one.
- */
 /**
  * @deprecated Do not use for reachability.
  *
@@ -232,7 +228,7 @@ export async function multiBlastRadiusViaMSpaths(
 
   let rows: Array<{ path: DriverPath }>;
   try {
-    rows = await runQuery<{ path: DriverPath }>(query);
+    rows = await runIsolatedQuery<{ path: DriverPath }>(query);
   } catch {
     return { sources: known, affected: [], pathsReturned: 0, native: false };
   }

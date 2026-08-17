@@ -109,6 +109,41 @@ export async function runQuery<T = Record<string, unknown>>(
   }
 }
 
+/**
+ * Runs a query on a dedicated, short-lived driver that is closed immediately.
+ *
+ * Used for the `algo.*` path procedures. Those return Bolt `Path` values, and
+ * the next query issued on the same connection afterwards fails to decode with
+ * a Node buffer error ("The value of 'offset' is out of range ... Received N"),
+ * which is a driver-side decode problem rather than anything wrong with the
+ * following query. Closing and reopening the shared driver did not clear it, so
+ * path queries get their own connection that is discarded straight after.
+ * Costs one connection setup; keeps every other query on a connection that has
+ * never seen a Path.
+ */
+export async function runIsolatedQuery<T = Record<string, unknown>>(
+  cypher: string,
+  params: Record<string, unknown> = {},
+): Promise<T[]> {
+  const config = getConfig();
+  const strategyName = process.env.HYDRA_AUTH ?? "bearer";
+  const found = AUTH_STRATEGIES.find((s) => s.name.startsWith(strategyName));
+  const auth = (found ?? AUTH_STRATEGIES[0]).build(config.token);
+
+  const isolated = buildDriver(config.uri, auth);
+  try {
+    const session = isolated.session();
+    try {
+      const result = await session.run(cypher, params);
+      return result.records.map((r) => r.toObject() as T);
+    } finally {
+      await session.close();
+    }
+  } finally {
+    await isolated.close().catch(() => {});
+  }
+}
+
 export async function closeConnection(): Promise<void> {
   if (driver) {
     await driver.close();
