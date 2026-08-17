@@ -315,11 +315,16 @@ program
 program
   .command("blast <package>")
   .description("Analyze blast radius of a compromised package")
-  .action(async (packageName) => {
+  .option("-d, --depth <number>", "max transitive depth", "10")
+  .action(async (packageName, opts) => {
     const spinner = ora(`Analyzing blast radius for ${packageName}...`).start();
     const registry = new IdRegistry(defaultRegistryPath());
     await registry.load();
-    const result = await analyzeBlastRadius(registry, packageName);
+    const result = await analyzeBlastRadius(
+      registry,
+      packageName,
+      safeInt(opts.depth, 10, 1, 20),
+    );
     spinner.stop();
 
     if (!result.found) {
