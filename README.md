@@ -56,7 +56,15 @@ it takes, which is exactly how the Shai-Hulud and TanStack campaigns propagated:
 the worm queried npm for everything a compromised account published, then
 republished it.
 
-The offline TanStack fixture shows the same shape with the numbers side by side:
+Reproduce that number yourself, offline, from committed real npm data:
+
+```bash
+npm run dev -- ingest --fixture fixtures/express.json
+npm run dev -- blast body-parser
+```
+
+The TanStack compromise fixture shows the same shape with the numbers side by
+side:
 
 ```
   ─────────────────────────────────────────
@@ -315,9 +323,52 @@ npm run build   # compile to dist/
 Pure logic (scoring, distance metrics, plan building, lockfile parsing) is kept
 separate from I/O so it is unit-testable with no database and no network.
 
-42 tests currently pass, covering the id registry's persistence round trip,
-snapshot replay fidelity, remediation classification, and the CI gate against
-nested transitive resolutions, scoped names, and lockfile v1 and v3.
+96 tests currently pass, covering the id registry's persistence round trip,
+snapshot replay fidelity, remediation classification, HTTP value decoding, the
+CI gate against nested transitive resolutions, scoped names and lockfile v1/v3,
+and 24 adversarial cases described under
+[How I tried to break it](#how-i-tried-to-break-it).
+
+## How I tried to break it
+
+A tool that outputs "blocked" or "clear" is only worth trusting if the author
+tried to make it say the wrong thing. Every row below is exercised by a test in
+[`tests/adversarial.test.ts`](tests/adversarial.test.ts), not checked by hand.
+
+| Input | Result |
+|---|---|
+| `--depth abc` (non-numeric flag) | Clamped to the default. Previously emitted the literal text `NaN` into a Cypher query |
+| `--depth 9999` | Clamped to 16, HydraDB's `max_traversal_hops`. Previously produced a rejected query reported as "feature unavailable" |
+| `--depth -99`, `0`, `3.7` | Clamped to a valid integer, never a negative or fractional bound |
+| Corrupt `package-lock.json` | **Throws.** A gate that cannot parse its input must never report a pass |
+| Missing blocklist file | Throws, exit 2, distinct from a policy failure (exit 1) |
+| Empty lockfile | Zero packages scanned, reported as zero rather than as a clean pass over data |
+| A directory named `my-node_modules-helper` | Not mistaken for a package. No false violation |
+| Dependency cycle (`a -> b -> a`) | Terminates, no duplicate edges |
+| Package depending on itself | Handled, no infinite walk |
+| `router` vs `@tanstack/router` | Kept distinct. Scoped and unscoped names never collide |
+| Corrupt or wrong-shaped id map | Starts fresh rather than assigning `NaN` ids |
+| Blast radius of 800 packages | Output stays under 20KB, no `undefined` or `NaN` in the rendered comment |
+| Unknown HTTP value shapes | Decoded or passed through, never throws |
+| Large ingest (2,235 edges, fresh graph) | Server returns HTTP 500 partway; the writer halves the batch and retries until it lands |
+
+**The invariant that matters: an error is never reported as a clean result.**
+Three separate bugs during the build presented as confident wrong answers
+because a `catch` swallowed the cause: a decode failure that read as "0 attack
+paths", a targeting bug that silently dropped a whole report section, and a
+depth above the server's limit that read as "this feature is unavailable". Each
+is now surfaced with the server's actual message, and `attackPaths` explicitly
+separates "no path exists" from "rows could not be decoded".
+
+**Trust architecture:** every verdict is rule-based. No model is consulted, so
+the same graph and inputs produce byte-identical output on every run.
+
+**Known limits, stated rather than discovered:** npm only, no PyPI. The graph is
+a seeded subgraph, not the full registry. It analyses a known compromise rather
+than discovering new ones. Shared CI infrastructure is not modelled, because npm
+does not publish it. Typosquat detection returns nothing on a clean graph, which
+is correct but undemonstrative, so a clearly-labelled synthetic fixture exists to
+exercise it.
 
 ## Project status
 
@@ -379,6 +430,48 @@ Known scope limits:
 - The graph is a seeded subgraph, not the full registry.
 - Analyses a known compromise; it does not discover new ones.
 
+## HydraDB: what worked, and what I fed back
+
+HydraDB is used through three surfaces: the Bolt protocol (for `doctor`, which
+probes that surface deliberately), the HTTP JSON query API with cursor
+pagination (the default transport for everything else), and the native
+`algo.MSpaths` path procedure. Ingestion goes through UNWIND batch mutations.
+
+Four findings from building on it, each reproducible and each documented in
+[`docs/HYDRADB-CYPHER-SPEC.md`](docs/HYDRADB-CYPHER-SPEC.md) with the source
+line that explains it. They are reported here as observations, not complaints:
+
+1. **The Bolt decode is unreliable for this driver pairing.** `neo4j-driver`
+   throws `The value of "offset" is out of range ... Received N` from a Node
+   buffer read. Triggered both by concurrent queries and, independently, by
+   larger responses, so it worsens as a graph grows and the failure appears to
+   move between commands. The HTTP API has no such problem, which is why it is
+   the default here.
+
+2. **Internal errors are suppressed on both transports.**
+   `src/client/bolt/values.rs:271` and `src/client/http.rs:433` map any
+   unmatched `GraphError` to the string `internal query execution error` and log
+   the real cause server-side. The client can never see it. Debugging a failed
+   write means reading the container log, which is worth stating in the docs
+   because the alternative is guessing at Cypher syntax, as I did for several
+   hours.
+
+3. **Variable-length traversal is outbound only.** `src/shard/query.rs:3976`
+   requires `edge.src.id`, so an inbound pattern (whose source is the far,
+   unidentified node) is always rejected, and a `$param` id is rejected too.
+   This is a real modelling constraint: answering "who depends on X" requires
+   materialising a reverse edge, roughly doubling edge count.
+
+4. **Large UNWIND writes fail partway with HTTP 500.** Observed at ~1,500 rows
+   of a 2,235-row edge batch against a fresh graph. Since the accepted size is
+   not discoverable from the API, this project halves the batch and retries.
+
+**A note on the image:** it runs as UID 10001, so Docker named volumes (created
+root-owned) leave it unable to write its store. Every write fails while reads
+succeed, and the suppressed error makes this look like a query problem. The
+README documents this for bind mounts; named volumes reproduce it identically.
+The devcontainer here runs the service as root.
+
 ## Attribution
 
 - [HydraDB](https://github.com/hydra-db/hydradb), the graph database this is
@@ -391,9 +484,13 @@ Known scope limits:
 - [vitest](https://vitest.dev/), [tsx](https://tsx.is/),
   [typescript](https://www.typescriptlang.org/) for development.
 - Package data from the public
-  [npm registry API](https://registry.npmjs.org/). `fixtures/tanstack.json` is
-  real registry data captured with `hyperdefense snapshot`; it records its own
-  capture time and provenance.
+  [npm registry API](https://registry.npmjs.org/). `fixtures/tanstack.json` and
+  `fixtures/express.json` are real registry data captured with
+  `hyperdefense snapshot`; each records its own capture time and provenance.
+  `fixtures/typosquat-demo.json` and `fixtures/vulnerable-app-lock.json` are
+  hand-authored and say so in their own provenance fields, because a clean
+  registry subset contains no typosquats and no compromised lockfile to catch.
+- Advisory data from [OSV](https://osv.dev).
 - Incident details referenced in comments and docs come from public reporting on
   the September 2025 Shai-Hulud worm and the May 2026 TanStack compromise.
 

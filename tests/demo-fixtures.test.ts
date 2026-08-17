@@ -122,3 +122,34 @@ describe("tanstack fixture is real data, and says so", () => {
     expect(snap.meta.provenance).not.toMatch(/SYNTHETIC/);
   });
 });
+
+describe("express fixture backs the README headline", () => {
+  const load = () =>
+    JSON.parse(readFileSync("fixtures/express.json", "utf8")) as Snapshot;
+
+  it("is real npm data, like the tanstack fixture", () => {
+    expect(load().meta.provenance).toMatch(/Real registry data/);
+  });
+
+  it("reproduces 1 dependency-only dependent and 31 total exposed", () => {
+    // The README leads with this number. It was originally produced by a live
+    // npm crawl that was never committed, so a reader could not reproduce it.
+    // This pins it to committed data instead.
+    const snap = load();
+    const dependents = snap.dependencies
+      .filter(([, to]) => to === "body-parser")
+      .map(([from]) => from);
+    expect(dependents).toEqual(["express"]);
+
+    const maintainers = snap.publishes
+      .filter(([, pkg]) => pkg === "body-parser")
+      .map(([m]) => m);
+    expect(maintainers.length).toBeGreaterThanOrEqual(3);
+
+    const reach = new Set<string>(dependents);
+    for (const [m, pkg] of snap.publishes) {
+      if (maintainers.includes(m) && pkg !== "body-parser") reach.add(pkg);
+    }
+    expect(reach.size).toBe(31);
+  });
+});
