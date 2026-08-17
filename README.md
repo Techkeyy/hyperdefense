@@ -307,16 +307,26 @@ Verified working against a live HydraDB:
   multi-hop chains such as
   `@tanstack/history -> @tanstack/router-core -> @tanstack/react-router`.
 
-### One operational constraint worth knowing
+### Two constraints worth knowing
 
-**Queries must not run concurrently.** Two in flight on a single Bolt connection
-intermittently corrupt the decode and surface as
-`The value of 'offset' is out of range ... Received N` from inside the driver's
-buffer read. It is timing and data dependent, so the failure appears to wander
-between commands as the graph grows, which is what made it hard to place: two
-plausible-but-wrong explanations were tried before noticing that the only
-operations ever affected were the only two using `Promise.all`. Every query path
-here is sequential.
+**Queries go over HTTP, not Bolt.** `neo4j-driver`'s Bolt decode is unreliable
+against HydraDB: it throws `The value of 'offset' is out of range ... Received N`
+from a Node buffer read, triggered both by concurrent queries and, separately,
+by larger responses. It therefore got worse as the graph grew, and the failure
+appeared to wander between commands, which made it hard to place. HydraDB also
+exposes a plain JSON query API with cursor pagination and no such decoder, so
+that is the default transport here (`src/db/http-client.ts`).
+`HYDRA_TRANSPORT=bolt` forces the Bolt path; `doctor` uses it deliberately to
+probe the Bolt surface. Queries are also issued sequentially.
+
+**HydraDB uses two different serde taggings, and mixing them fails silently.**
+Row values are adjacently tagged (`{"type":"string","value":"x"}`), while a
+`VertexPropertyValue` nested inside a path is externally tagged
+(`{"String":"x"}`). Using the wrong decoder throws nothing: it returns raw
+objects, every name lookup misses, and `attack-path` reports "0 paths" as though
+the graph had none. In a security tool that reads as "you are safe", so
+`attackPaths` now counts rows it could not decode and reports them as a bug
+rather than an absence of paths.
 
 - Temporal exposure. Verified on the TanStack graph: correctly identified the
   version published inside a given window and the three consumers that could
