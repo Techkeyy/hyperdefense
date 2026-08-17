@@ -13,6 +13,7 @@ import { findTyposquats } from "./analysis/typosquat.js";
 import { findWorkingConnection, runProbes } from "./doctor/probe.js";
 import { probeRegistry } from "./doctor/registry-probe.js";
 import { writeCapabilityReport } from "./doctor/report.js";
+import { runWriteProbe } from "./doctor/write-probe.js";
 
 program
   .name("hyperdefense")
@@ -128,6 +129,28 @@ program
         ),
       );
     }
+  });
+
+program
+  .command("debug-write")
+  .description(
+    "Run each write/read form in isolation and print the real HydraDB error",
+  )
+  .action(async () => {
+    console.log(chalk.bold("\n  HyperDefense write probe\n"));
+    const results = await runWriteProbe();
+    for (const r of results) {
+      if (r.ok) {
+        console.log(`  ${chalk.green("ok  ")} ${r.step}`);
+      } else {
+        console.log(`  ${chalk.red("FAIL")} ${r.step}`);
+        console.log(chalk.dim(`       query: ${r.query.replace(/\s+/g, " ").trim()}`));
+        console.log(chalk.red(`       code:  ${r.code ?? "(none)"}`));
+        console.log(chalk.red(`       error: ${r.message ?? "(none)"}`));
+      }
+    }
+    console.log();
+    await closeConnection();
   });
 
 program

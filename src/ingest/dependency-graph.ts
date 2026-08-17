@@ -119,22 +119,39 @@ export class IngestBuffer {
   /** Flush all buffered rows to HydraDB. Nodes before edges, so MERGE-by-id on
    * an edge endpoint always finds a node that already carries its properties. */
   async flush(batchSize = 500): Promise<void> {
-    await this.flushRows(QUERIES.upsertPackages, [...this.packages.values()], batchSize);
-    await this.flushRows(QUERIES.upsertMaintainers, [...this.maintainers.values()], batchSize);
-    await this.flushRows(QUERIES.upsertVersions, [...this.versions.values()], batchSize);
-    await this.flushRows(QUERIES.upsertDependencyEdges, this.dependsOn, batchSize);
-    await this.flushRows(QUERIES.upsertPublishesEdges, this.publishes, batchSize);
-    await this.flushRows(QUERIES.upsertHasVersionEdges, this.hasVersion, batchSize);
+    await this.flushRows("packages", QUERIES.upsertPackages, [...this.packages.values()], batchSize);
+    await this.flushRows("maintainers", QUERIES.upsertMaintainers, [...this.maintainers.values()], batchSize);
+    await this.flushRows("versions", QUERIES.upsertVersions, [...this.versions.values()], batchSize);
+    await this.flushRows("dependency-edges", QUERIES.upsertDependencyEdges, this.dependsOn, batchSize);
+    await this.flushRows("publishes-edges", QUERIES.upsertPublishesEdges, this.publishes, batchSize);
+    await this.flushRows("has-version-edges", QUERIES.upsertHasVersionEdges, this.hasVersion, batchSize);
   }
 
   private async flushRows(
+    stage: string,
     query: string,
     rows: unknown[],
     batchSize: number,
   ): Promise<void> {
     for (let i = 0; i < rows.length; i += batchSize) {
       const batch = rows.slice(i, i + batchSize);
-      await runQuery(query, { rows: batch });
+      try {
+        await runQuery(query, { rows: batch });
+      } catch (err: unknown) {
+        const e = err as { code?: string; message?: string };
+        // Annotate with which stage and a sample row so a failure names itself
+        // instead of collapsing into HydraDB's generic wrapper message.
+        const sample = JSON.stringify(batch[0], (_k, v) =>
+          typeof v === "object" && v && "toNumber" in v
+            ? (v as { toNumber(): number }).toNumber()
+            : v,
+        );
+        throw new Error(
+          `flush failed at stage "${stage}" (rows ${i}..${i + batch.length}). ` +
+            `HydraDB code=${e.code ?? "?"} message=${e.message ?? "?"}. ` +
+            `sample row=${sample}`,
+        );
+      }
     }
   }
 }
