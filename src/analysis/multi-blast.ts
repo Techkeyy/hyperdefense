@@ -72,6 +72,104 @@ function namesInPath(path: DriverPath): string[] {
 }
 
 /**
+ * The ordered chain of package names along a path, start to end, deduplicated
+ * only where consecutive segments repeat a node. This is the part that makes a
+ * path more useful than a set: it shows HOW the compromise arrives.
+ */
+export function pathChain(path: DriverPath): string[] {
+  const chain: string[] = [];
+  const push = (n: unknown) => {
+    const v = nameOf(n);
+    if (v && chain[chain.length - 1] !== v) chain.push(v);
+  };
+  push(path.start);
+  for (const seg of path.segments ?? []) {
+    push(seg.start);
+    push(seg.end);
+  }
+  push(path.end);
+  return chain;
+}
+
+export interface AttackPath {
+  from: string;
+  to: string;
+  chain: string[];
+  hops: number;
+}
+
+/**
+ * Concrete attack paths from compromised packages to specific targets, using
+ * `algo.MSpaths`.
+ *
+ * This is the question the procedure is actually built for, and the one it
+ * answers better than a traversal. `blast` answers "what is exposed" and
+ * returns a set. This answers "HOW does the compromise reach *this* service",
+ * and returns the chain: which intermediate package pulls in the bad code, and
+ * therefore where a responder can cut the link.
+ *
+ * Deliberately NOT used for reachability. MSpaths enumerates shortest paths per
+ * pair, which under-counts the affected set: measured against the traversal it
+ * reported 4 affected packages where the true answer was 5. An under-count in a
+ * security tool is worse than a slow answer, so `blast` and `blast-many` use
+ * traversal, and the procedure is used only where its semantics are correct.
+ */
+export async function attackPaths(
+  registry: IdRegistry,
+  compromised: string[],
+  targets: string[],
+  maxDepth = 6,
+  maxPathsPerPair = 5,
+): Promise<{ paths: AttackPath[]; native: boolean }> {
+  const knownSources = compromised.filter(
+    (n) => registry.lookup("package", n) !== undefined,
+  );
+  const knownTargets = targets.filter(
+    (n) => registry.lookup("package", n) !== undefined,
+  );
+  if (knownSources.length === 0 || knownTargets.length === 0) {
+    return { paths: [], native: true };
+  }
+
+  const depth = Math.max(1, Math.min(20, Math.floor(maxDepth)));
+  const count = Math.max(1, Math.min(1000, Math.floor(maxPathsPerPair)));
+
+  const query =
+    `CALL algo.MSpaths({sourceLabel: 'Package', sourceProperty: 'name', ` +
+    `sourceValues: [${knownSources.map(cypherString).join(", ")}], ` +
+    `targetValues: [${knownTargets.map(cypherString).join(", ")}], ` +
+    `relTypes: ['DEPENDED_ON_BY'], maxLen: ${depth}, ` +
+    `relDirection: 'outgoing', pathCount: ${count}, ` +
+    `resultLimit: ${RESULT_LIMIT}}) YIELD path RETURN path`;
+
+  let rows: Array<{ path: DriverPath }>;
+  try {
+    rows = await runQuery<{ path: DriverPath }>(query);
+  } catch {
+    return { paths: [], native: false };
+  }
+
+  const seen = new Set<string>();
+  const paths: AttackPath[] = [];
+  for (const row of rows) {
+    const chain = pathChain(row.path);
+    if (chain.length < 2) continue;
+    const key = chain.join(">");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    paths.push({
+      from: chain[0],
+      to: chain[chain.length - 1],
+      chain,
+      hops: chain.length - 1,
+    });
+  }
+
+  paths.sort((a, b) => a.hops - b.hops || a.chain.join().localeCompare(b.chain.join()));
+  return { paths, native: true };
+}
+
+/**
  * Escapes a package name for embedding in a Cypher string literal. The
  * procedure takes selector values inline, and npm names can contain quotes and
  * backslashes, so this is not optional.
@@ -87,7 +185,20 @@ function cypherString(value: string): string {
  * so the caller can fall back to per-package traversal rather than fail. The
  * working path is never removed in favour of the faster one.
  */
-export async function multiBlastRadius(
+/**
+ * @deprecated Do not use for reachability.
+ *
+ * Kept because the measurement is worth preserving: run against the traversal
+ * on the TanStack graph this reported 4 affected packages where the correct
+ * answer was 5, and took 184ms against the loop's 100ms. `MSpaths` enumerates
+ * shortest paths per source-target pair; a set of shortest paths is not the set
+ * of reachable nodes, and no `pathCount` fixes that because it is a semantic
+ * difference, not a limit.
+ *
+ * `blast-many` therefore unions per-package traversals, and the procedure is
+ * used by `attackPaths`, where path semantics are exactly what is wanted.
+ */
+export async function multiBlastRadiusViaMSpaths(
   registry: IdRegistry,
   packageNames: string[],
   maxDepth = 5,

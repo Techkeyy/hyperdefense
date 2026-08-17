@@ -23,7 +23,7 @@ import {
 import { verifyLockfile } from "./remediate/verify.js";
 import { SEED_PACKAGES } from "./ingest/npm-registry.js";
 import { analyzeBlastRadius } from "./analysis/blast-radius.js";
-import { multiBlastRadius } from "./analysis/multi-blast.js";
+import { attackPaths } from "./analysis/multi-blast.js";
 import { analyzeLateralMovement } from "./analysis/lateral-movement.js";
 import { analyzeTemporalExposure } from "./analysis/temporal-exposure.js";
 import { findTyposquats } from "./analysis/typosquat.js";
@@ -396,94 +396,128 @@ program
 
 program
   .command("blast-many <packages...>")
-  .description(
-    "Blast radius for many compromised packages in ONE native HydraDB call",
-  )
+  .description("Combined blast radius for several compromised packages")
   .option("-d, --depth <number>", "max traversal depth", "5")
-  .option(
-    "--compare",
-    "also run the per-package loop, to show what the native call replaces",
-  )
   .action(async (packageNames: string[], opts) => {
     const registry = new IdRegistry(defaultRegistryPath());
     await registry.load();
     const depth = Number(opts.depth);
 
-    const spinner = ora(
-      `algo.MSpaths over ${packageNames.length} sources...`,
-    ).start();
-    const t0 = Date.now();
-    const result = await multiBlastRadius(registry, packageNames, depth);
-    const nativeMs = Date.now() - t0;
+    const spinner = ora(`Traversing ${packageNames.length} sources...`).start();
+    // Union of per-package traversals, NOT algo.MSpaths. The procedure returns
+    // shortest paths per pair, which under-counts the reachable set: measured
+    // here it reported 4 affected where the true answer was 5. An under-count
+    // in a security tool is the worst kind of wrong, so correctness wins.
+    const affected = new Set<string>();
+    const found: string[] = [];
+    for (const pkg of packageNames) {
+      const single = await analyzeBlastRadius(registry, pkg, depth);
+      if (!single.found) continue;
+      found.push(pkg);
+      for (const d of single.downstream) affected.add(d.name);
+      for (const lm of single.lateralMovement) {
+        for (const p of lm.atRiskPackages) affected.add(p);
+      }
+    }
     spinner.stop();
 
-    console.log(
-      chalk.red.bold(
-        `\n  MULTI-SOURCE BLAST RADIUS (${result.sources.length} compromised packages)\n`,
-      ),
-    );
-
-    if (!result.native) {
+    if (found.length === 0) {
       console.log(
         chalk.yellow(
-          "  algo.MSpaths unavailable here; falling back to per-package traversal.\n",
-        ),
-      );
-    }
-
-    if (result.sources.length === 0) {
-      console.log(
-        chalk.yellow(
-          "  None of those packages are in the graph. Ingest them first.\n",
+          "\n  None of those packages are in the graph. Ingest them first.\n",
         ),
       );
       await closeConnection();
       return;
     }
 
-    console.log(chalk.dim(`  sources: ${result.sources.join(", ")}\n`));
+    // Sources are compromised by definition, not "affected by" the incident.
+    for (const s of found) affected.delete(s);
+
     console.log(
-      `  ${chalk.red.bold(String(result.affected.length))} affected packages ` +
-        chalk.dim(`(${result.pathsReturned} paths, ${nativeMs}ms, 1 query)`),
+      chalk.red.bold(
+        `\n  COMBINED BLAST RADIUS (${found.length} compromised packages)\n`,
+      ),
     );
-    for (const name of result.affected.slice(0, 40)) {
+    console.log(chalk.dim(`  sources: ${found.join(", ")}\n`));
+    console.log(
+      `  ${chalk.red.bold(String(affected.size))} distinct packages exposed`,
+    );
+    for (const name of [...affected].sort().slice(0, 40)) {
       console.log(`    ${chalk.red("•")} ${name}`);
     }
-    if (result.affected.length > 40) {
-      console.log(chalk.dim(`    ... and ${result.affected.length - 40} more`));
+    if (affected.size > 40) {
+      console.log(chalk.dim(`    ... and ${affected.size - 40} more`));
     }
-
-    if (opts.compare) {
-      // Reset the connection before the comparison. The MSpaths query returns
-      // Bolt Path values, and the very next query on the same connection was
-      // failing to decode ("offset out of range ... received 9"), which points
-      // at leftover connection state rather than anything wrong with the loop.
-      // A fresh driver sidesteps it; the alternative is a crash mid-comparison.
-      await closeConnection();
-
-      // The point of the native call is that this loop is what it replaces.
-      const t1 = Date.now();
-      const union = new Set<string>();
-      for (const pkg of result.sources) {
-        const single = await analyzeBlastRadius(registry, pkg, depth);
-        for (const d of single.downstream) union.add(d.name);
-      }
-      const loopMs = Date.now() - t1;
-      console.log(
-        chalk.bold("\n  ─────────────────────────────────────────"),
-      );
-      console.log(
-        `  native algo.MSpaths: ${chalk.green("1")} query, ${nativeMs}ms, ` +
-          `${result.affected.length} affected`,
-      );
-      console.log(
-        `  per-package loop:    ${chalk.yellow(String(result.sources.length))} queries, ` +
-          `${loopMs}ms, ${union.size} affected`,
-      );
-      console.log(chalk.bold("  ─────────────────────────────────────────"));
-    }
-
     console.log();
+    await closeConnection();
+  });
+
+program
+  .command("attack-path <compromised...>")
+  .description(
+    "How a compromise reaches a service: concrete chains via algo.MSpaths",
+  )
+  .requiredOption("--to <targets...>", "the package(s) you care about")
+  .option("-d, --depth <number>", "max path length", "6")
+  .option("-n, --paths <number>", "max paths per source-target pair", "5")
+  .action(async (compromised: string[], opts) => {
+    const registry = new IdRegistry(defaultRegistryPath());
+    await registry.load();
+
+    const spinner = ora("algo.MSpaths...").start();
+    const t0 = Date.now();
+    const { paths, native } = await attackPaths(
+      registry,
+      compromised,
+      opts.to,
+      Number(opts.depth),
+      Number(opts.paths),
+    );
+    const ms = Date.now() - t0;
+    spinner.stop();
+
+    console.log(chalk.red.bold(`\n  ATTACK PATHS\n`));
+    if (!native) {
+      console.log(chalk.yellow("  algo.MSpaths unavailable here.\n"));
+      await closeConnection();
+      return;
+    }
+    if (paths.length === 0) {
+      console.log(
+        chalk.green(
+          `  No path from ${compromised.join(", ")} to ${opts.to.join(", ")} ` +
+            `within ${opts.depth} hops.\n`,
+        ),
+      );
+      await closeConnection();
+      return;
+    }
+
+    console.log(
+      chalk.dim(`  ${paths.length} path(s), ${ms}ms, one native call\n`),
+    );
+    for (const p of paths.slice(0, 20)) {
+      const chain = p.chain
+        .map((n, i) =>
+          i === 0
+            ? chalk.red.bold(n)
+            : i === p.chain.length - 1
+              ? chalk.yellow.bold(n)
+              : n,
+        )
+        .join(chalk.dim(" -> "));
+      console.log(`  ${chalk.dim(`${p.hops} hops:`)} ${chain}`);
+    }
+    if (paths.length > 20) {
+      console.log(chalk.dim(`  ... and ${paths.length - 20} more`));
+    }
+    console.log(
+      chalk.dim(
+        `\n  Each chain names the intermediate package that pulls in the bad\n` +
+          `  code, which is where the link can be cut.\n`,
+      ),
+    );
     await closeConnection();
   });
 
@@ -545,35 +579,38 @@ program
     // 3. The native multi-source query. Real incidents hit dozens of packages
     // at once, and this is the one HydraDB primitive that answers that shape
     // directly rather than looping.
-    step(3, "All compromised packages at once (native algo.MSpaths)");
-    const compromisedSet = [
-      "@tanstack/router-core",
-      "@tanstack/react-router",
-      "@tanstack/router-plugin",
-      "@tanstack/history",
-      "@tanstack/store",
-    ];
-    const tMulti = Date.now();
-    const multi = await multiBlastRadius(registry, compromisedSet, 5);
-    const multiMs = Date.now() - tMulti;
-    console.log(
-      `  ${multi.sources.length} compromised packages resolved in ` +
-        chalk.green.bold("1 query") +
-        chalk.dim(` (${multi.pathsReturned} paths, ${multiMs}ms)`),
+    step(3, "How does it reach me? (native algo.MSpaths)");
+    const tPaths = Date.now();
+    const { paths } = await attackPaths(
+      registry,
+      ["@tanstack/router-core", "@tanstack/history"],
+      ["@tanstack/react-router"],
+      6,
+      5,
     );
-    console.log(
-      `  ${chalk.red.bold(String(multi.affected.length))} distinct packages reachable`,
-    );
-    for (const n of multi.affected.slice(0, 8)) console.log(`    - ${n}`);
-    if (multi.affected.length > 8) {
-      console.log(chalk.dim(`    ... and ${multi.affected.length - 8} more`));
-    }
+    const pathsMs = Date.now() - tPaths;
     console.log(
       chalk.dim(
-        `\n  The May 2026 TanStack worm hit 42 packages in six minutes.\n` +
-          `  This is the query shape that answers that, without a client-side loop.`,
+        `  "blast" says WHAT is exposed. This says HOW the code arrives,\n` +
+          `  which is where a responder can actually cut the link.\n`,
       ),
     );
+    console.log(
+      `  ${paths.length} path(s) into @tanstack/react-router ` +
+        chalk.dim(`(${pathsMs}ms, one native call)`),
+    );
+    for (const p of paths.slice(0, 5)) {
+      const chain = p.chain
+        .map((n, i) =>
+          i === 0
+            ? chalk.red.bold(n)
+            : i === p.chain.length - 1
+              ? chalk.yellow.bold(n)
+              : n,
+        )
+        .join(chalk.dim(" -> "));
+      console.log(`    ${chalk.dim(`${p.hops} hops:`)} ${chain}`);
+    }
 
     // Reset the connection after the path-procedure query. See blast-many:
     // a query following one that returned Bolt Path values was failing to

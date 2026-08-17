@@ -118,10 +118,11 @@ npm run dev -- ingest --fixture fixtures/tanstack.json
 # Blast radius across the dependency and maintainer layers
 npm run dev -- blast body-parser
 
-# Many compromised packages at once, one native algo.MSpaths call.
-# --compare also runs the per-package loop to show what it replaces.
-npm run dev -- blast-many @tanstack/router-core @tanstack/history \
-  @tanstack/store --compare
+# Combined blast radius for several compromised packages
+npm run dev -- blast-many @tanstack/router-core @tanstack/history
+
+# HOW a compromise reaches a service you care about, as concrete chains
+npm run dev -- attack-path @tanstack/router-core --to @tanstack/react-router
 
 # Maintainer overlap and lateral-movement risk, scored
 npm run dev -- lateral body-parser
@@ -174,17 +175,38 @@ store cannot answer.
 | Question | HydraDB traversal |
 |----------|-------------------|
 | Downstream blast radius | `MATCH (c {id: <id>})-[:DEPENDED_ON_BY*1..N]->(x:Package) RETURN x.name` |
-| **N packages compromised at once** | **`CALL algo.MSpaths({sourceLabel:'Package', sourceProperty:'name', sourceValues:[...], relTypes:['DEPENDED_ON_BY'], ...}) YIELD path`** |
+| **How a compromise reaches a given service** | **`CALL algo.MSpaths({sourceLabel:'Package', sourceProperty:'name', sourceValues:[...], targetValues:[...], relTypes:['DEPENDED_ON_BY'], ...}) YIELD path`** |
 | Lateral movement | two-hop through a shared `Maintainer` node, with `collect()` |
 | Temporal exposure | `MATCH (c {id: $id})-[:HAS_VERSION]->(v:Version) RETURN v.version, v.publishedAt` |
 
-The second row is the one that could not be built any other way. Real
-compromises are never a single package: the May 2026 TanStack worm published 84
-malicious versions across 42 packages in six minutes. Answering "what do all of
-these reach" with ordinary traversal means N round trips and a client-side
-merge. `algo.MSpaths` takes many indexed source values and resolves them inside
-the engine in a single call. `blast-many --compare` runs both and prints the
-difference.
+The second row answers a different question from the first, and it is the one
+`algo.MSpaths` is genuinely right for. `blast` tells you **what** is exposed and
+returns a set. `attack-path` tells you **how** the bad code arrives and returns
+the chain, naming the intermediate package that pulls it in, which is where a
+responder can cut the link:
+
+```
+2 hops: @tanstack/router-core -> @tanstack/router-plugin -> @tanstack/react-router
+```
+
+### A measurement that changed the design
+
+`MSpaths` was originally used for the reachability query itself, on the
+reasoning that resolving many sources in one engine-side call must beat a loop.
+Measured against the traversal on the same graph, it reported **4 affected
+packages where the correct answer was 5**, and took 184ms against the loop's
+100ms.
+
+The cause is semantic, not a tuning problem: `MSpaths` enumerates *shortest
+paths per source-target pair*, and a set of shortest paths is not the set of
+reachable nodes. No `pathCount` fixes that. (`pathCount` also defaults to `1`,
+which under-reported further until it was set explicitly.)
+
+An under-count in a security tool is worse than a slow answer, because it is a
+confident wrong answer. So reachability (`blast`, `blast-many`) uses traversal,
+and the procedure is used only for `attack-path`, where path semantics are
+exactly what is wanted. The deprecated function is kept in
+`src/analysis/multi-blast.ts` with the measurement recorded next to it.
 
 Ingestion writes nodes and edges through HydraDB's UNWIND batch mutations, which
 is the only supported path for bulk node writes.
