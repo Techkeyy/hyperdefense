@@ -62,9 +62,15 @@ jobs:
           node-version: '22'
       - name: Install HyperDefense
         run: npm ci
+      - name: Build
+        # The 'hyperdefense' bin resolves to dist/, so the CLI must be compiled
+        # before it can be invoked. Without this the gate fails to start, which
+        # would look like a passing build in a workflow that never ran.
+        run: npm run build
       - name: Enforce supply-chain blocklist
-        # Exits non-zero when a blocked package version is present, which
-        # fails the check and blocks the merge.
+        # Exits 1 when a blocked package version resolved, failing the check and
+        # blocking the merge. Exit 2 means the gate could not run at all, which
+        # also fails rather than being mistaken for a pass.
         run: npx hyperdefense verify --blocklist .hyperdefense/blocklist.json
 `;
 }

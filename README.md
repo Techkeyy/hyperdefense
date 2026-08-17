@@ -13,8 +13,11 @@ once:
   it, and are therefore the worm's next hop. This is the layer commercial
   scanners do not model, and it is the difference between "what is already hit"
   and "what is about to be".
-- **Temporal graph**: which versions were published inside the compromise
-  window, and which consumers could have resolved them while they were live.
+- **Temporal graph**: the full publish timeline per package (the committed
+  TanStack fixture carries 2,235 version nodes, up to 60 per package). That is
+  what makes it possible to name the **first suspect version**, the one that
+  shipped inside the compromise window, and the **last clean version** to pin
+  back to.
 
 This is a graph traversal problem, not a vector similarity problem. No embedding
 captures a transitive reverse-dependency closure or a shared-maintainer edge.
@@ -62,6 +65,23 @@ The offline TanStack fixture shows the same shape with the numbers side by side:
   7 packages a dependency-only scanner misses (3.3x)
   ─────────────────────────────────────────
 ```
+
+## The track's questions, and where each is answered
+
+Track 2 Option A poses six questions. Mapped honestly, including the limits:
+
+| Question | Command | Status |
+|----------|---------|--------|
+| Which internal services are transitively exposed? | `blast`, `blast-many` | full |
+| What is the complete blast radius? | `blast` | full, across dependency and maintainer layers |
+| Which other packages share maintainers with it? | `lateral`, `blast` | full |
+| Which version introduced the vulnerability? | `exposure` | names the first version published inside the window, and the last clean version to pin to, from a real per-package timeline |
+| Which applications resolved the compromised version while it was live? | `verify` | resolves against a real lockfile, which records what actually installed. Not correlated to the time window: an app's lockfile has no timestamp, so "while it was live" is answered for the package timeline, not per application |
+| Are there likely typosquat packages nearby? | `typosquat` | edit-distance over names in the graph, classified by technique |
+
+The track also mentions shared *infrastructure* alongside shared maintainers.
+Only the maintainer relationship is modelled; CI and build infrastructure are
+not, because npm does not publish it.
 
 ## Quick start
 

@@ -12,6 +12,13 @@ import type { GraphSink } from "./snapshot.js";
  */
 const int = neo4j.int;
 
+/**
+ * How many of a package's most recent versions to ingest. Enough to cover a
+ * realistic compromise window and the releases either side of it, without
+ * pulling the thousands of releases some popular packages carry.
+ */
+export const VERSION_HISTORY_LIMIT = 60;
+
 interface PackageRow {
   id: ReturnType<typeof int>;
   name: string;
@@ -231,9 +238,27 @@ export async function crawlPackage(
     }
   }
 
-  if (latestTag && pkg.time?.[latestTag]) {
-    buffer.addVersion(pkg.name, latestTag, pkg.time[latestTag]);
-    buffer.addHasVersion(pkg.name, `${pkg.name}@${latestTag}`);
+  // Ingest the version HISTORY, not just the latest release.
+  //
+  // The track asks "which version introduced the vulnerability" and "which
+  // applications resolved the compromised version while it was live". Both are
+  // questions about a timeline, and a single latest-version node cannot answer
+  // either. npm already returns every version's publish time in `time`, so the
+  // history costs no extra requests.
+  //
+  // Capped at the most recent VERSION_HISTORY_LIMIT: popular packages have
+  // thousands of releases, and an uncapped crawl would bloat the graph and the
+  // committed fixtures for no analytical gain during an incident window.
+  const times = pkg.time ?? {};
+  const versionTimes = Object.entries(times)
+    // `created` and `modified` are metadata keys in the same map, not versions.
+    .filter(([v]) => v !== "created" && v !== "modified")
+    .sort((a, b) => a[1].localeCompare(b[1]));
+
+  const recent = versionTimes.slice(-VERSION_HISTORY_LIMIT);
+  for (const [version, publishedAt] of recent) {
+    buffer.addVersion(pkg.name, version, publishedAt);
+    buffer.addHasVersion(pkg.name, `${pkg.name}@${version}`);
   }
 
   const deps = latestVersion?.dependencies ?? {};

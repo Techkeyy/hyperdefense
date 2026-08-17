@@ -84,6 +84,35 @@ describe("typosquat demo fixture", () => {
   });
 });
 
+describe("tanstack fixture carries real version history", () => {
+  const load = () =>
+    JSON.parse(readFileSync("fixtures/tanstack.json", "utf8")) as Snapshot;
+
+  it("has many versions per package, not just the latest", () => {
+    // Regression guard. The first version of the ingester recorded only
+    // dist-tags.latest, giving exactly one version node per package, which
+    // makes the temporal layer unable to answer "which version introduced
+    // this" no matter how the query is written.
+    const snap = load();
+    const byPackage = new Map<string, number>();
+    for (const v of snap.versions) {
+      byPackage.set(v.package, (byPackage.get(v.package) ?? 0) + 1);
+    }
+    const counts = [...byPackage.values()];
+    expect(Math.max(...counts)).toBeGreaterThan(10);
+    expect(snap.versions.length).toBeGreaterThan(500);
+  });
+
+  it("version timestamps span a real range, so a window can select a subset", () => {
+    const snap = load();
+    const times = snap.versions.map((v) => v.publishedAt).sort();
+    expect(times[0]).not.toBe(times[times.length - 1]);
+    const spanDays =
+      (Date.parse(times[times.length - 1]) - Date.parse(times[0])) / 86_400_000;
+    expect(spanDays).toBeGreaterThan(30);
+  });
+});
+
 describe("tanstack fixture is real data, and says so", () => {
   it("distinguishes itself from the synthetic fixtures", () => {
     const snap = JSON.parse(

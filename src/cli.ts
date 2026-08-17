@@ -909,9 +909,47 @@ program
       chalk.cyan(`  Duration: ${result.windowDurationHours} hours\n`),
     );
 
-    console.log(chalk.yellow("  Versions published in window:"));
-    for (const v of result.versionsPublished) {
+    console.log(
+      chalk.dim(`  ${result.versionsKnown} versions known for this package\n`),
+    );
+
+    // Directly answers the track's "which version introduced the vulnerability"
+    // and gives the responder the version to pin back to.
+    if (result.firstSuspectVersion) {
+      console.log(
+        chalk.red.bold(`  First suspect version: `) +
+          chalk.red(
+            `${result.firstSuspectVersion.version} (${result.firstSuspectVersion.publishedAt})`,
+          ),
+      );
+    }
+    if (result.lastCleanVersion) {
+      console.log(
+        chalk.green.bold(`  Last clean version:    `) +
+          chalk.green(
+            `${result.lastCleanVersion.version} (${result.lastCleanVersion.publishedAt})`,
+          ),
+      );
+      console.log(
+        chalk.dim(
+          `  Pin to ${result.lastCleanVersion.version}: ` +
+            `npm run dev -- remediate ${packageName} --safe-version ${result.lastCleanVersion.version}`,
+        ),
+      );
+    }
+
+    console.log(
+      chalk.yellow(
+        `\n  Versions published in window (${result.versionsPublished.length}):`,
+      ),
+    );
+    for (const v of result.versionsPublished.slice(0, 25)) {
       console.log(`    ${v.version} (${v.publishedAt})`);
+    }
+    if (result.versionsPublished.length > 25) {
+      console.log(
+        chalk.dim(`    ... and ${result.versionsPublished.length - 25} more`),
+      );
     }
 
     console.log(chalk.yellow(`\n  Consumers exposed: ${result.consumersExposed.length}`));
