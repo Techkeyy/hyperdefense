@@ -406,14 +406,29 @@ async function syncTargetList() {
     list.appendChild(o);
   }
   const hint = $("p-hint");
-  if (!hint) return;
+  const chips = $("p-reach");
+  if (!hint || !chips) return;
+  const from = $("p-from").value.trim();
+  chips.innerHTML = "";
+
   if (reach && reach.length > 0) {
     hint.textContent =
       reach.length === 1
-        ? `${$("p-from").value.trim()} reaches 1 package: ${reach[0]}`
-        : `${$("p-from").value.trim()} reaches ${reach.length} packages`;
+        ? `${from} reaches 1 package, click it to trace:`
+        : `${from} reaches ${reach.length} packages, click one to trace:`;
+    for (const name of reach) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "reach-chip";
+      b.textContent = name;
+      b.addEventListener("click", () => {
+        $("p-to").value = name;
+        runTrace(from, name);
+      });
+      chips.appendChild(b);
+    }
   } else if (reach) {
-    hint.textContent = `${$("p-from").value.trim()} reaches no package in this graph`;
+    hint.textContent = `${from} reaches no package in this graph`;
   } else {
     hint.textContent = "";
   }
@@ -421,9 +436,7 @@ async function syncTargetList() {
 $("p-from").addEventListener("input", syncTargetList);
 $("p-from").addEventListener("change", syncTargetList);
 
-$("p-go").addEventListener("click", async () => {
-  const from = $("p-from").value.trim();
-  const to = $("p-to").value.trim();
+async function runTrace(from, to) {
   const out = $("path-out");
   if (!from || !to) {
     out.innerHTML = `<p class="num dim">Enter both a compromised package and a target.</p>`;
@@ -446,9 +459,11 @@ $("p-go").addEventListener("click", async () => {
       const reach = await reachableFrom(from);
       let extra = "";
       if (reach && reach.length > 0) {
-        const shown = reach.slice(0, 8).join(", ");
-        const rest = reach.length > 8 ? `, and ${reach.length - 8} more` : "";
-        extra = ` It reaches ${shown}${rest}.`;
+        // The chips under the form already carry these names and are
+        // clickable, so repeating them here would be noise.
+        extra = $("p-reach").childElementCount > 0
+          ? ` Pick one of the ${reach.length} it does reach, below.`
+          : ` It reaches ${reach.slice(0, 8).join(", ")}.`;
       } else if (reach) {
         extra = ` It reaches no package in this graph.`;
       }
@@ -480,7 +495,11 @@ $("p-go").addEventListener("click", async () => {
   } catch (err) {
     out.innerHTML = `<p class="num" style="color:var(--accent)">${err.message}</p>`;
   }
-});
+}
+
+$("p-go").addEventListener("click", () =>
+  runTrace($("p-from").value.trim(), $("p-to").value.trim()),
+);
 
 /* ----------------------------------------------------------------- gate */
 $("g-go").addEventListener("click", async () => {
