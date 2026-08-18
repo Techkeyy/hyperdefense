@@ -142,9 +142,12 @@
     </p>
 
     <div class="path-form">
-      <input id="p-from" type="text" placeholder="Compromised package" />
+      <input id="p-from" type="text" placeholder="Compromised package"
+             list="pkglist" autocomplete="off" spellcheck="false" />
       <span class="num arrow">reaches</span>
-      <input id="p-to" type="text" placeholder="Service you care about" />
+      <input id="p-to" type="text" placeholder="Service you care about"
+             list="pkglist" autocomplete="off" spellcheck="false" />
+      <datalist id="pkglist"></datalist>
       <button class="btn btn-ghost" id="p-go">Trace</button>
     </div>
 

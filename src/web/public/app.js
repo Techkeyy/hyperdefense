@@ -79,15 +79,32 @@ async function staticApi(path) {
   }
   if (path.startsWith("/api/paths")) {
     const u = new URL(path, location.origin);
-    const key = `${u.searchParams.get("from")}|${u.searchParams.get("to")}`;
-    const all = await staticFile("paths.json");
-    if (!all[key]) {
+    const from = u.searchParams.get("from");
+    const to = u.searchParams.get("to");
+
+    // A name that is not in the graph at all is a different answer from a pair
+    // this deploy did not precompute. Reporting the second for the first reads
+    // as "that pair exists, it just is not cached", which is wrong and sends
+    // the reader looking for a local run that would not help either.
+    const m = await staticFile("manifest.json");
+    const known = new Set([...(m.packages ?? []), ...(m.featured ?? [])]);
+    const unknown = [from, to].filter((n) => !known.has(n));
+    if (unknown.length > 0) {
       throw new Error(
-        "This deploy has precomputed paths for a few pairs only. Run it " +
-          "locally against HydraDB to trace any pair.",
+        `Not a package in this graph: ${unknown.join(", ")}. ` +
+          `Pick a name from the suggestions in either field.`,
       );
     }
-    return all[key];
+
+    const all = await staticFile("paths.json");
+    if (!all[`${from}|${to}`]) {
+      throw new Error(
+        "Both packages are in the graph, but this deploy has precomputed " +
+          "paths for a few pairs only. Run it locally against HydraDB to " +
+          "trace any pair.",
+      );
+    }
+    return all[`${from}|${to}`];
   }
   if (path.startsWith("/api/gate/")) return staticFile("gate.json");
   throw new Error("not available in the static build");
@@ -110,6 +127,17 @@ async function boot() {
   try {
     const { packages } = await api("/api/packages");
     PACKAGES = packages;
+    // The path fields took free text with nothing to guide them, so a plausible
+    // looking typo came back as a missing path rather than a bad name.
+    const list = $("pkglist");
+    if (list) {
+      list.innerHTML = "";
+      for (const name of packages) {
+        const o = document.createElement("option");
+        o.value = name;
+        list.appendChild(o);
+      }
+    }
     if (packages.length > 0) {
       $("explore-empty").hidden = true;
       // Prefer a package that actually shows the argument well.
