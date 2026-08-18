@@ -97,14 +97,25 @@ async function staticApi(path) {
     }
 
     const all = await staticFile("paths.json");
-    if (!all[`${from}|${to}`]) {
-      throw new Error(
-        "Both packages are in the graph, but this deploy has precomputed " +
-          "paths for a few pairs only. Run it locally against HydraDB to " +
-          "trace any pair.",
-      );
+    // The first export wrote a flat from|to map. Read either shape so the page
+    // keeps working against data exported before this change.
+    const pairs = all.pairs ?? all;
+    const exhausted = new Set(all.exhausted ?? []);
+    const maxHops = all.maxHops ?? 6;
+
+    const hit = pairs[`${from}|${to}`];
+    if (hit) return hit;
+
+    // If every target reachable from `from` was queried, then this pair having
+    // no entry is the answer, not a hole in the export.
+    if (exhausted.has(from)) {
+      return { paths: [], undecodableRows: 0, maxHops };
     }
-    return all[`${from}|${to}`];
+
+    throw new Error(
+      `Both packages are in the graph, but this deploy has no precomputed ` +
+        `paths out of ${from}. Run it locally against HydraDB to trace any pair.`,
+    );
   }
   if (path.startsWith("/api/gate/")) return staticFile("gate.json");
   throw new Error("not available in the static build");
@@ -376,7 +387,8 @@ $("p-go").addEventListener("click", async () => {
       return;
     }
     if (r.paths.length === 0) {
-      out.innerHTML = `<p class="num dim">No path from ${from} to ${to} within 6 hops.</p>`;
+      const hops = r.maxHops ?? 6;
+      out.innerHTML = `<p class="num dim">No attack path from ${from} to ${to} within ${hops} hops. HydraDB searched every package ${from} reaches.</p>`;
       return;
     }
     out.innerHTML = "";

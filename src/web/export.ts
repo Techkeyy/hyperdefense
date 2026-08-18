@@ -100,6 +100,10 @@ export async function exportStatic(
   ].slice(0, MAX_PACKAGES);
 
   const done: string[] = [];
+  /** Each exported package to the packages it can actually reach. Targets
+   * outside this set have no dependency path by construction, so the client
+   * can answer "no path" definitively rather than "not precomputed". */
+  const reachable = new Map<string, string[]>();
   for (const pkg of featured) {
     const blast = await analyzeBlastRadius(registry, pkg);
     if (!blast.found) continue;
@@ -138,24 +142,49 @@ export async function exportStatic(
       "utf8",
     );
     done.push(pkg);
+    reachable.set(pkg, blast.downstream.map((d) => d.name));
   }
 
-  // A couple of representative attack paths, keyed by from|to.
-  const pathPairs: Array<[string, string]> = [
-    ["@tanstack/router-core", "@tanstack/react-router"],
-    ["body-parser", "express"],
-  ];
+  // Every pair that can have a path, rather than two hand-picked ones.
+  //
+  // Two precomputed pairs meant almost any pair a reader tried came back as
+  // "not precomputed", which is a dead end dressed as an answer: both names
+  // are real, the graph knows the answer, and the deploy simply had not asked.
+  // MSpaths takes many targets per call, so one call per source covers that
+  // source's whole reachable set. Recording the sources that were exhausted
+  // lets the client say "no path" as a result rather than as a gap.
   const paths: Record<string, unknown> = {};
-  for (const [from, to] of pathPairs) {
-    if (!all.includes(from) || !all.includes(to)) continue;
-    const r = await attackPaths(registry, [from], [to]);
-    paths[`${from}|${to}`] = {
-      paths: r.paths,
-      undecodableRows: r.undecodableRows,
-      error: r.native ? undefined : r.error,
-    };
+  const exhausted: string[] = [];
+  for (const from of done) {
+    const targets = reachable.get(from) ?? [];
+    if (targets.length === 0) {
+      exhausted.push(from);
+      continue;
+    }
+    const r = await attackPaths(registry, [from], targets);
+    if (!r.native) {
+      // The procedure failed for this source, so absence of a pair here does
+      // not mean absence of a path. Leave it out of `exhausted`.
+      continue;
+    }
+    const byPair = new Map<string, typeof r.paths>();
+    for (const path of r.paths) {
+      const key = `${path.from}|${path.to}`;
+      const list = byPair.get(key) ?? [];
+      list.push(path);
+      byPair.set(key, list);
+    }
+    for (const [key, list] of byPair) {
+      paths[key] = { paths: list, undecodableRows: 0, error: undefined };
+    }
+    if (r.undecodableRows > 0) continue;
+    exhausted.push(from);
   }
-  await writeFile(join(outDir, "paths.json"), JSON.stringify(paths), "utf8");
+  await writeFile(
+    join(outDir, "paths.json"),
+    JSON.stringify({ exhausted, maxHops: 6, pairs: paths }),
+    "utf8",
+  );
 
   // The gate, run for real against both committed lockfiles.
   const gateFor = done.includes("@tanstack/router-core")
