@@ -40,6 +40,12 @@ jobs:
             || { echo "No exported data. Run 'npm run export' and commit src/web/public/data."; exit 1; }
 
       - uses: actions/configure-pages@v5
+        with:
+          # Turn Pages on from here rather than requiring someone to find the
+          # repository setting first. Without this the action fails with a bare
+          # "Not Found" that reads like a missing file rather than a disabled
+          # feature.
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: src/web/public
