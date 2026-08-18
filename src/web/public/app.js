@@ -28,17 +28,32 @@ let STATIC_MODE = false;
 
 async function api(path) {
   if (!STATIC_MODE) {
+    let res;
     try {
-      const res = await fetch(path);
-      const body = await res.json().catch(() => ({ error: "bad response" }));
-      if (res.ok) return body;
-      // A 404 for an unknown package is a real answer, not a dead backend.
-      if (res.status === 404) throw new Error(body.error || "not found");
-      throw new Error(body.error || `HTTP ${res.status}`);
-    } catch (err) {
-      if (err && err.message && err.message !== "Failed to fetch") throw err;
+      res = await fetch(path);
+    } catch {
+      // No server at all.
       STATIC_MODE = true;
+      return staticApi(path);
     }
+
+    // Distinguish "our API answered, and the answer is no" from "there is no
+    // API here". A static host returns 404 with an HTML body for /api/*, and
+    // reading that as a real not-found answer is what kept the fallback from
+    // ever engaging on a deploy. Only a JSON response is our API talking.
+    const type = res.headers.get("content-type") || "";
+    if (!type.includes("application/json")) {
+      STATIC_MODE = true;
+      return staticApi(path);
+    }
+
+    const body = await res.json().catch(() => null);
+    if (body === null) {
+      STATIC_MODE = true;
+      return staticApi(path);
+    }
+    if (res.ok) return body;
+    throw new Error(body.error || `HTTP ${res.status}`);
   }
   return staticApi(path);
 }
@@ -102,11 +117,12 @@ async function boot() {
       const start = preferred.find((p) => packages.includes(p));
       if (start) select(start);
     }
-  } catch {
+  } catch (err) {
     // Leave the empty state in place. An unreachable API must not render as
     // an empty graph, which would look like a package with no exposure.
-    $("explore-empty").textContent =
-      "Cannot reach the API. Is HydraDB running, and has a graph been ingested?";
+    $("explore-empty").textContent = STATIC_MODE
+      ? `No precomputed data found. ${err.message}`
+      : "Cannot reach the API. Is HydraDB running, and has a graph been ingested?";
   }
 }
 
