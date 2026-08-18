@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
-    "web": "tsx src/cli.ts web"
+    "web": "tsx src/cli.ts web",
+    "export": "tsx src/cli.ts export"
   },
   "keywords": [
     "supply-chain",

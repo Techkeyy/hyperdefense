@@ -37,6 +37,7 @@ import { writeCapabilityReport } from "./doctor/report.js";
 import { runWriteProbe } from "./doctor/write-probe.js";
 import { safeInt, MAX_TRAVERSAL_HOPS } from "./util/num.js";
 import { startServer } from "./web/server.js";
+import { exportStatic } from "./web/export.js";
 
 program
   .name("hyperdefense")
@@ -710,6 +711,40 @@ program
           ),
       ),
     );
+    await closeConnection();
+  });
+
+program
+  .command("export")
+  .description(
+    "Precompute the dashboard data so it can be deployed without a database",
+  )
+  .option("-o, --out <dir>", "output directory", "src/web/public/data")
+  .action(async (opts) => {
+    const spinner = ora("Querying HydraDB and writing static data...").start();
+    try {
+      const r = await exportStatic(opts.out, [
+        "body-parser",
+        "express",
+        "@tanstack/router-core",
+        "@tanstack/react-router",
+      ]);
+      spinner.succeed(
+        `Exported ${r.featured.length} package graphs (of ${r.packages} in the graph) to ${opts.out}`,
+      );
+      console.log(
+        chalk.dim(
+          `
+  The dashboard now works with no backend. Deploy the folder:
+` +
+            chalk.cyan(`    npx vercel deploy --prod src/web/public
+`),
+        ),
+      );
+    } catch (err) {
+      spinner.fail(err instanceof Error ? err.message : String(err));
+      process.exitCode = 1;
+    }
     await closeConnection();
   });
 

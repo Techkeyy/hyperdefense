@@ -16,11 +16,73 @@ document.querySelectorAll("[data-to]").forEach((el) => {
   });
 });
 
+/*
+ * Live API first, precomputed export second.
+ *
+ * The dashboard has to work in two places: against a running HydraDB, and as a
+ * static deploy where a reader can look at it without installing anything. The
+ * static path is not a lesser demo, it is the same query results captured by
+ * `hyperdefense export`, so the page renders identically either way.
+ */
+let STATIC_MODE = false;
+
 async function api(path) {
-  const res = await fetch(path);
-  const body = await res.json().catch(() => ({ error: "bad response" }));
-  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-  return body;
+  if (!STATIC_MODE) {
+    try {
+      const res = await fetch(path);
+      const body = await res.json().catch(() => ({ error: "bad response" }));
+      if (res.ok) return body;
+      // A 404 for an unknown package is a real answer, not a dead backend.
+      if (res.status === 404) throw new Error(body.error || "not found");
+      throw new Error(body.error || `HTTP ${res.status}`);
+    } catch (err) {
+      if (err && err.message && err.message !== "Failed to fetch") throw err;
+      STATIC_MODE = true;
+    }
+  }
+  return staticApi(path);
+}
+
+async function staticFile(name) {
+  const res = await fetch(`/data/${name}`);
+  if (!res.ok) throw new Error(`no precomputed data for ${name}`);
+  return res.json();
+}
+
+async function staticApi(path) {
+  if (path === "/api/packages") {
+    const m = await staticFile("manifest.json");
+    markStatic(m.generatedAt);
+    return { packages: m.featured };
+  }
+  if (path.startsWith("/api/graph/")) {
+    const pkg = decodeURIComponent(path.slice("/api/graph/".length));
+    return staticFile(`graph-${encodeURIComponent(pkg)}.json`);
+  }
+  if (path.startsWith("/api/paths")) {
+    const u = new URL(path, location.origin);
+    const key = `${u.searchParams.get("from")}|${u.searchParams.get("to")}`;
+    const all = await staticFile("paths.json");
+    if (!all[key]) {
+      throw new Error(
+        "This deploy has precomputed paths for a few pairs only. Run it " +
+          "locally against HydraDB to trace any pair.",
+      );
+    }
+    return all[key];
+  }
+  if (path.startsWith("/api/gate/")) return staticFile("gate.json");
+  throw new Error("not available in the static build");
+}
+
+function markStatic(generatedAt) {
+  const el = document.getElementById("mode-note");
+  if (!el) return;
+  const when = new Date(generatedAt).toISOString().slice(0, 10);
+  el.textContent =
+    `Precomputed from a live HydraDB on ${when}. Every number is a real query ` +
+    `result. Run it locally to query the graph yourself.`;
+  el.hidden = false;
 }
 
 /* ---------------------------------------------------------------- search */

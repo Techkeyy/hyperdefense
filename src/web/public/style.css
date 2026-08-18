@@ -201,7 +201,18 @@ section.hero { padding-top: 168px; border-top: none; }
 }
 .stat-note { font-size: 11px; color: var(--text-3); margin: 0 0 42px; }
 
-.cta-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.cta-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+
+/*
+ * Credibility in the hero rather than adjectives: licence, what it is built on,
+ * the test count, and the trust property. Borrowed from a reference that puts
+ * proof above the fold instead of art.
+ */
+.proof {
+  font-size: 11px; color: var(--text-3); margin: 24px 0 0;
+  letter-spacing: 0.02em;
+}
+#mode-note { margin-top: 8px; max-width: 560px; line-height: 1.6; }
 
 /* buttons: shrink on hover, never grow ---------------------------------- */
 .btn {
