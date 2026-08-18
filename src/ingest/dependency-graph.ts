@@ -19,6 +19,16 @@ const int = neo4j.int;
  */
 export const VERSION_HISTORY_LIMIT = 60;
 
+/**
+ * A single-row write is retried this many times before its failure is treated
+ * as real. Sized for the observed case: the first edge stage failing right
+ * after several thousand node rows, then succeeding unchanged.
+ */
+const SINGLE_ROW_RETRIES = 4;
+const BACKOFF_MS = 400;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 interface PackageRow {
   id: ReturnType<typeof int>;
   name: string;
@@ -186,24 +196,36 @@ export class IngestBuffer implements GraphSink {
   }
 
   /**
-   * Write one batch, halving and retrying on failure.
+   * Write one batch, retrying on failure and halving if size looks like the
+   * problem.
    *
-   * A large ingest into a fresh graph intermittently returns HTTP 500 from
-   * HydraDB partway through the biggest write (observed on batch 4 of 2,235
-   * version edges). The server suppresses the real cause, so the size at which
-   * it gives up cannot be looked up, only discovered. Rather than pick a magic
-   * constant that happens to work on one machine, this finds a workable size at
-   * runtime: split, retry, and only give up when a SINGLE row still fails, at
-   * which point the problem is that row rather than the volume.
+   * Two distinct failures live here, and conflating them produced a wrong
+   * diagnosis:
    *
-   * Retrying a batch is safe because every write is a MERGE keyed on a
-   * deterministic id, so re-sending rows that already landed is a no-op.
+   *  - SIZE. A large ingest intermittently returns HTTP 500 partway through the
+   *    biggest write. The server suppresses the real cause, so the size it will
+   *    accept cannot be looked up, only discovered by splitting.
+   *  - TRANSIENCE. A write fails and the identical write succeeds moments
+   *    later, most often on the first edge stage right after several thousand
+   *    node rows, when the server is presumably still busy with them. Observed
+   *    failing on a SINGLE row at index 0 and then succeeding on a plain re-run
+   *    of the same command.
+   *
+   * An earlier version treated reaching a single row as proof the row itself
+   * was bad, and said so ("Not a batch-size problem") before giving up. That
+   * was a confident wrong answer: the row was fine and a retry fixed it. So a
+   * single row is now retried with backoff before any conclusion is drawn, and
+   * the message no longer asserts a cause it has not established.
+   *
+   * Retrying is safe because every write is a MERGE keyed on a deterministic
+   * id, so re-sending rows that already landed is a no-op.
    */
   private async writeBatch(
     stage: string,
     query: string,
     batch: unknown[],
     offset: number,
+    attempt = 0,
   ): Promise<void> {
     if (batch.length === 0) return;
 
@@ -212,6 +234,11 @@ export class IngestBuffer implements GraphSink {
       return;
     } catch (err: unknown) {
       if (batch.length === 1) {
+        // Give the server time to settle before blaming the data.
+        if (attempt < SINGLE_ROW_RETRIES) {
+          await sleep(BACKOFF_MS * (attempt + 1));
+          return this.writeBatch(stage, query, batch, offset, attempt + 1);
+        }
         const e = err as { code?: string; message?: string };
         const sample = JSON.stringify(batch[0], (_k, v) =>
           typeof v === "object" && v && "toNumber" in v
@@ -219,8 +246,8 @@ export class IngestBuffer implements GraphSink {
             : v,
         );
         throw new Error(
-          `flush failed at stage "${stage}" on a SINGLE row (index ${offset}). ` +
-            `Not a batch-size problem. ` +
+          `flush failed at stage "${stage}", row index ${offset}, after ` +
+            `${SINGLE_ROW_RETRIES + 1} attempts on that row alone. ` +
             `HydraDB code=${e.code ?? "?"} message=${e.message ?? "?"}. ` +
             `row=${sample}`,
         );
