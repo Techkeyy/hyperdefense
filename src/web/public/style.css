@@ -143,49 +143,54 @@ section.hero { padding-top: 168px; border-top: none; }
 .wrap { max-width: 1180px; margin: 0 auto; }
 
 /* hero ----------------------------------------------------------------- */
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  gap: 56px;
-  align-items: center;
-}
-.hero-copy { min-width: 0; }
 
 /*
- * The art is placed, not pasted. It sits on the same near-black as the page and
- * is faded on its left and bottom edges so it dissolves into the background
- * instead of ending on a hard rectangle. No overlay: a scrim over an image is
- * the tell that it was dropped in rather than composed.
+ * Full-bleed art behind the whole hero, revealed by a directional gradient
+ * rather than boxed into a column.
  *
- * The image carries its own colour, which is the one place a second accent is
- * allowed: a single emotional moment. The coral accent stays reserved for the
- * number that carries the argument, so the two never compete.
+ * Three gradients stack over the image: a horizontal one that keeps the left
+ * near-opaque where the copy sits and opens up toward the right, and two
+ * vertical ones that dissolve the top under the nav and the bottom into the
+ * next section. The result has no edge anywhere, which is the difference
+ * between art that belongs to the page and a picture pasted onto it.
+ *
+ * The copy sits above both on its own stacking level, so contrast is carried by
+ * the gradient rather than by a flat scrim.
  */
-.hero-art {
-  margin: 0;
+.hero {
   position: relative;
-  min-width: 0;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  overflow: hidden;
 }
-.hero-art img {
-  width: 100%;
-  max-width: 430px;
-  height: auto;
-  display: block;
-  border-radius: 2px;
-  /* Fade toward the copy and into the section boundary. */
-  -webkit-mask-image:
-    linear-gradient(to right, transparent 0%, #000 32%, #000 100%),
-    linear-gradient(to bottom, #000 0%, #000 72%, transparent 99%);
-  -webkit-mask-composite: source-in;
-  mask-image:
-    linear-gradient(to right, transparent 0%, #000 32%, #000 100%),
-    linear-gradient(to bottom, #000 0%, #000 72%, transparent 99%);
-  mask-composite: intersect;
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: url("./img/hero.jpg") 78% 34% / cover no-repeat;
+  /* Weighted toward the right, where the gradient actually lets it show. */
+  opacity: 0.92;
 }
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(
+      95deg,
+      rgba(11, 11, 14, 0.96) 0%,
+      rgba(11, 11, 14, 0.9) 34%,
+      rgba(11, 11, 14, 0.42) 62%,
+      rgba(11, 11, 14, 0) 84%
+    ),
+    linear-gradient(0deg, rgb(11, 11, 14) 0%, rgba(11, 11, 14, 0) 24%),
+    linear-gradient(180deg, rgb(11, 11, 14) 0%, rgba(11, 11, 14, 0) 14%);
+}
+.hero > .wrap {
+  position: relative;
+  z-index: 2;
+}
+.hero-copy { max-width: 760px; }
 
 .contrast {
   display: flex; align-items: flex-end; gap: 44px;
@@ -322,13 +327,20 @@ footer { padding: 40px; border-top: 1px solid var(--border); }
 .foot-inner { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.1em; color: var(--text-3); }
 
 @media (max-width: 980px) {
-  /* Stack, and let the art lead as a band rather than a column. */
-  .hero-grid { grid-template-columns: 1fr; gap: 34px; }
-  .hero-art { order: -1; justify-content: flex-start; }
-  .hero-art img {
-    max-width: 320px;
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 74%, transparent 99%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000 74%, transparent 99%);
+  /*
+   * Narrow viewports leave no room to reveal the art beside the copy, so the
+   * horizontal gradient becomes a vertical one: the image reads as a band
+   * behind the top of the hero and fades down into the text.
+   */
+  .hero::before { background-position: 62% 22%; opacity: 0.7; }
+  .hero::after {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(11, 11, 14, 0.72) 0%,
+        rgba(11, 11, 14, 0.92) 42%,
+        rgb(11, 11, 14) 72%
+      );
   }
 }
 
