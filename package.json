@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
     "web": "tsx src/cli.ts web",
-    "export": "tsx src/cli.ts export"
+    "export": "tsx src/cli.ts export",
+    "check:claims": "node scripts/check-claims.mjs"
   },
   "keywords": [
     "supply-chain",

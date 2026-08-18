@@ -3,6 +3,14 @@
 A multi-graph supply chain blast radius engine built on
 [HydraDB](https://github.com/hydra-db/hydradb).
 
+**[Live dashboard](https://hyperdefense.vercel.app)** &middot;
+[mirror](https://techkeyy.github.io/hyperdefense) &middot;
+[how I tried to break it](#how-i-tried-to-break-it) &middot;
+[limitations](#project-status)
+
+The dashboard runs with no backend: it serves query results captured from a real
+HydraDB instance, so the numbers on it are the ones the engine produced.
+
 When a package is compromised, the urgent question is not "is this one bad" but
 "what does it reach". HyperDefense answers that across three graph layers at
 once:
@@ -340,7 +348,7 @@ npm run build   # compile to dist/
 Pure logic (scoring, distance metrics, plan building, lockfile parsing) is kept
 separate from I/O so it is unit-testable with no database and no network.
 
-96 tests currently pass, covering the id registry's persistence round trip,
+102 tests currently pass, covering the id registry's persistence round trip,
 snapshot replay fidelity, remediation classification, HTTP value decoding, the
 CI gate against nested transitive resolutions, scoped names and lockfile v1/v3,
 and 24 adversarial cases described under
