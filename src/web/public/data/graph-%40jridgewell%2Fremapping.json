@@ -1,0 +1,1 @@
+{"nodes":[{"id":"@jridgewell/remapping","kind":"source"},{"id":"@tanstack/router-plugin","kind":"dependent"},{"id":"unplugin","kind":"dependent"}],"links":[{"source":"@tanstack/router-plugin","target":"@jridgewell/remapping","kind":"depends"},{"source":"unplugin","target":"@jridgewell/remapping","kind":"depends"}],"stats":{"dependencyOnly":2,"total":2,"maintainers":0}}
