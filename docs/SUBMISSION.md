@@ -70,8 +70,18 @@ Let step 1 scroll. Stop on step 2.
 > HydraDB's native `algo.MSpaths` procedure, one call, returning the actual
 > chains.
 >
-> `history` reaches `react-router` through `router-core`. That middle package is
-> where you cut the link. A set of names cannot tell you that; a path can.
+> `@babel/code-frame` reaches `@babel/core` five different ways. One is direct.
+> The others run through `template`, through `traverse`, through `helpers`.
+> Those middle packages are where you cut the link, and there is more than one
+> link to cut. A set of names cannot tell you that; a path can.
+
+On screen, type `@babel/code-frame` and `@babel/core` into the attack path
+fields. This pair is verified against the committed export: five chains, one to
+three hops. Do not use `history` to `react-router`, which an earlier draft of
+this script called for. `history` is not a source in the export, so it returns
+the not computed message, and the `router-core` to `react-router` pair is a
+single direct edge that shows no intermediate at all, which is the one thing
+this beat exists to demonstrate.
 
 ### 1:25 to 1:45, which version (step 4)
 
