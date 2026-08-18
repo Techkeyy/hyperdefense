@@ -31,8 +31,6 @@ async function boot() {
     const { packages } = await api("/api/packages");
     PACKAGES = packages;
     if (packages.length > 0) {
-      $("live-count").textContent = packages.length;
-      $("live").hidden = false;
       $("explore-empty").hidden = true;
       // Prefer a package that actually shows the argument well.
       const preferred = ["body-parser", "@tanstack/router-core", packages[0]];

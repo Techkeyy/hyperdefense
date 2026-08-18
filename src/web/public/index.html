@@ -25,45 +25,46 @@
 
 <!-- HERO -------------------------------------------------------------- -->
 <section id="top" class="hero">
-  <div class="wrap">
-    <div id="live" class="live" hidden>
-      <span class="dot"></span>
-      <span class="num live-text">Connected to HydraDB, <span id="live-count">0</span> packages</span>
-    </div>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">Supply chain blast radius</p>
+      <h1 class="display">
+        A dependency graph tells you<br /><em>what broke.</em>
+        A maintainer graph tells you<br /><em>what is next.</em>
+      </h1>
+      <p class="lede">
+        When an npm account is compromised, the worm republishes everything that
+        account owns. HyperDefense models dependencies, maintainer accounts, and
+        the publish timeline as three graphs in HydraDB, so the second question
+        has an answer.
+      </p>
 
-    <p class="eyebrow">Supply chain blast radius</p>
-    <h1 class="display">
-      A dependency graph tells you<br /><em>what broke.</em>
-      A maintainer graph tells you<br /><em>what is next.</em>
-    </h1>
-    <p class="lede">
-      When an npm account is compromised, the worm republishes everything that
-      account owns. HyperDefense models dependencies, maintainer accounts, and
-      the publish timeline as three graphs in HydraDB, so the second question
-      has an answer.
-    </p>
-
-    <div class="contrast">
-      <div class="stat">
-        <span class="stat-label num">Dependency layer alone</span>
-        <span class="stat-value num" id="hero-dep">1</span>
-        <span class="stat-unit num">package</span>
+      <div class="contrast">
+        <div class="stat">
+          <span class="stat-label num">Dependency layer alone</span>
+          <span class="stat-value num" id="hero-dep">1</span>
+          <span class="stat-unit num">package</span>
+        </div>
+        <div class="stat-arrow num">reaches</div>
+        <div class="stat">
+          <span class="stat-label num">With maintainer accounts</span>
+          <span class="stat-value num accent" id="hero-total">31</span>
+          <span class="stat-unit num">packages</span>
+        </div>
       </div>
-      <div class="stat-arrow num">reaches</div>
-      <div class="stat">
-        <span class="stat-label num">With maintainer accounts</span>
-        <span class="stat-value num accent" id="hero-total">31</span>
-        <span class="stat-unit num">packages</span>
+      <p class="stat-note num" id="hero-note">
+        body-parser, real npm data, reproducible offline
+      </p>
+
+      <div class="cta-row">
+        <button class="btn btn-primary" data-to="explore">Explore the graph</button>
+        <button class="btn btn-ghost" data-to="how">How it works</button>
       </div>
     </div>
-    <p class="stat-note num" id="hero-note">
-      body-parser, real npm data, reproducible offline
-    </p>
 
-    <div class="cta-row">
-      <button class="btn btn-primary" data-to="explore">Explore the graph</button>
-      <button class="btn btn-ghost" data-to="how">How it works</button>
-    </div>
+    <figure class="hero-art" aria-hidden="true">
+      <img src="/img/hero.jpg" alt="" decoding="async" />
+    </figure>
   </div>
 </section>
 
