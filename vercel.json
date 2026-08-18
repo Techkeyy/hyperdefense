@@ -1,7 +1,19 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "outputDirectory": "src/web/public",
-  "buildCommand": null,
   "framework": null,
-  "cleanUrls": true
+  "installCommand": "echo skip",
+  "buildCommand": "echo no build step, serving the precomputed dashboard",
+  "outputDirectory": "src/web/public",
+  "cleanUrls": true,
+  "headers": [
+    {
+      "source": "/data/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
 }
