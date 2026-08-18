@@ -149,6 +149,7 @@ async function boot() {
         list.appendChild(o);
       }
     }
+    syncTargetList();
     if (packages.length > 0) {
       $("explore-empty").hidden = true;
       // Prefer a package that actually shows the argument well.
@@ -366,6 +367,60 @@ function render(ctx, W, H, nodes, links) {
 }
 
 /* ---------------------------------------------------------------- paths */
+
+/**
+ * The targets a source can actually reach, or null when that is unknown.
+ *
+ * Offering all 53 packages in the target field while a source like
+ * body-parser reaches exactly one of them turns the feature into a guessing
+ * game, where a correct "no path" answer arrives over and over and reads like
+ * a broken page. Only the static export carries the full pair index; in server
+ * mode the live query answers directly and there is nothing to narrow against.
+ */
+async function reachableFrom(from) {
+  if (!STATIC_MODE || !from) return null;
+  try {
+    const all = await staticFile("paths.json");
+    const pairs = all.pairs ?? all;
+    if (!new Set(all.exhausted ?? []).has(from)) return null;
+    const prefix = `${from}|`;
+    return Object.keys(pairs)
+      .filter((k) => k.startsWith(prefix))
+      .map((k) => k.slice(prefix.length))
+      .sort();
+  } catch {
+    return null;
+  }
+}
+
+// Narrow the target suggestions as soon as a source is chosen.
+async function syncTargetList() {
+  const list = $("tolist");
+  if (!list) return;
+  const reach = await reachableFrom($("p-from").value.trim());
+  const names = reach ?? PACKAGES;
+  list.innerHTML = "";
+  for (const name of names) {
+    const o = document.createElement("option");
+    o.value = name;
+    list.appendChild(o);
+  }
+  const hint = $("p-hint");
+  if (!hint) return;
+  if (reach && reach.length > 0) {
+    hint.textContent =
+      reach.length === 1
+        ? `${$("p-from").value.trim()} reaches 1 package: ${reach[0]}`
+        : `${$("p-from").value.trim()} reaches ${reach.length} packages`;
+  } else if (reach) {
+    hint.textContent = `${$("p-from").value.trim()} reaches no package in this graph`;
+  } else {
+    hint.textContent = "";
+  }
+}
+$("p-from").addEventListener("input", syncTargetList);
+$("p-from").addEventListener("change", syncTargetList);
+
 $("p-go").addEventListener("click", async () => {
   const from = $("p-from").value.trim();
   const to = $("p-to").value.trim();
@@ -388,7 +443,16 @@ $("p-go").addEventListener("click", async () => {
     }
     if (r.paths.length === 0) {
       const hops = r.maxHops ?? 6;
-      out.innerHTML = `<p class="num dim">No attack path from ${from} to ${to} within ${hops} hops. HydraDB searched every package ${from} reaches.</p>`;
+      const reach = await reachableFrom(from);
+      let extra = "";
+      if (reach && reach.length > 0) {
+        const shown = reach.slice(0, 8).join(", ");
+        const rest = reach.length > 8 ? `, and ${reach.length - 8} more` : "";
+        extra = ` It reaches ${shown}${rest}.`;
+      } else if (reach) {
+        extra = ` It reaches no package in this graph.`;
+      }
+      out.innerHTML = `<p class="num dim">No attack path from ${from} to ${to} within ${hops} hops. HydraDB searched every package ${from} reaches.${extra}</p>`;
       return;
     }
     out.innerHTML = "";
