@@ -87,7 +87,8 @@ this beat exists to demonstrate.
 
 > Sixty versions of this package are in the graph. Given the compromise window,
 > the last clean release was 1.169.2 and the first suspect one is 1.169.5,
-> published nineteen minutes into the incident.
+> published nineteen hours into the incident. A second, 1.169.8, followed six
+> minutes later.
 >
 > That is the version to pin back to, and it is derived, not guessed.
 
