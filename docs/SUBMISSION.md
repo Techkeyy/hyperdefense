@@ -191,8 +191,19 @@ to run and safe to gate a pipeline on.
 
 **Deployed project link**
 
-Not deployed. It is a CLI and a CI gate. A judge can run the whole thing from a
-Codespace with `npm run demo`, offline, against committed real npm data.
+https://hyperdefense.vercel.app
+
+A live dashboard, no backend required: it serves query results captured from a
+real HydraDB instance, so every number on it is one the engine produced. Search
+a package to see its blast radius, pick a compromised package and click any of
+the packages it reaches to trace the route, and run the CI gate against a
+committed lockfile.
+
+Mirror: https://techkeyy.github.io/hyperdefense
+
+The CLI is the primary interface and the gate is what a team would actually run
+in a pipeline. A judge can run the whole thing from a Codespace with
+`npm run demo`, offline, against committed real npm data.
 
 **How the project uses the HydraDB Open Source Repo**
 
