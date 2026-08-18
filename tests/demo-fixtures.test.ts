@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, rm, mkdtemp } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { verifyLockfile } from "../src/remediate/verify.js";
 import type { Snapshot } from "../src/ingest/snapshot.js";
 
@@ -151,5 +151,52 @@ describe("express fixture backs the README headline", () => {
       if (maintainers.includes(m) && pkg !== "body-parser") reach.add(pkg);
     }
     expect(reach.size).toBe(31);
+  });
+});
+
+describe("the published export contains no fabricated packages", () => {
+  const DATA = "src/web/public/data";
+
+  it("never ships a synthetic typosquat name as if it were real npm data", () => {
+    // The demo ingests the typosquat fixture into the same graph, so invented
+    // names sit beside real ones and an export will happily publish them. On a
+    // public deploy that presents fabricated packages as genuine registry data
+    // with nothing on screen to distinguish them.
+    if (!existsSync(`${DATA}/manifest.json`)) return;
+
+    const snap = JSON.parse(
+      readFileSync("fixtures/typosquat-demo.json", "utf8"),
+    ) as Snapshot;
+    const synthetic = new Set(
+      snap.publishes.filter(([a]) => a === "suspicious-actor").map(([, p]) => p),
+    );
+    expect(synthetic.size).toBeGreaterThan(5);
+
+    const manifest = JSON.parse(
+      readFileSync(`${DATA}/manifest.json`, "utf8"),
+    ) as { packages: string[]; featured: string[] };
+
+    for (const name of [...manifest.packages, ...manifest.featured]) {
+      expect(synthetic.has(name)).toBe(false);
+    }
+    for (const f of readdirSync(DATA)) {
+      if (!f.startsWith("graph-")) continue;
+      const name = decodeURIComponent(f.slice("graph-".length, -".json".length));
+      expect(synthetic.has(name)).toBe(false);
+    }
+  });
+
+  it("does not publish the gate's scratch input", () => {
+    if (!existsSync(DATA)) return;
+    expect(existsSync(`${DATA}/_blocklist.json`)).toBe(false);
+  });
+
+  it("leads with the packages that demonstrate the argument", () => {
+    if (!existsSync(`${DATA}/manifest.json`)) return;
+    const m = JSON.parse(readFileSync(`${DATA}/manifest.json`, "utf8")) as {
+      featured: string[];
+    };
+    expect(m.featured[0]).toBe("body-parser");
+    expect(m.featured).toContain("@tanstack/router-core");
   });
 });

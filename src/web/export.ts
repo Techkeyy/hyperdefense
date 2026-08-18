@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { runQuery } from "../db/connection.js";
 import { QUERIES } from "../db/queries.js";
@@ -36,6 +36,31 @@ export interface ExportManifest {
 /** Enough packages to explore, capped so the export stays a reasonable size. */
 const MAX_PACKAGES = 60;
 
+/**
+ * Names that exist only in a hand-authored fixture.
+ *
+ * Read from the fixture itself rather than hard-coded, so adding a near-miss to
+ * the typosquat scenario cannot silently leak it into a public deploy. Only the
+ * packages attributed to the fabricated account are excluded: that fixture also
+ * contains real names (express, lodash, chalk) which are legitimate graph
+ * members.
+ */
+async function syntheticNames(): Promise<Set<string>> {
+  const out = new Set<string>();
+  try {
+    const raw = await readFile("fixtures/typosquat-demo.json", "utf8");
+    const snap = JSON.parse(raw) as {
+      publishes?: Array<[string, string]>;
+    };
+    for (const [account, pkg] of snap.publishes ?? []) {
+      if (account === "suspicious-actor") out.add(pkg);
+    }
+  } catch {
+    // No fixture, nothing to exclude.
+  }
+  return out;
+}
+
 export async function exportStatic(
   outDir: string,
   featuredHint: string[] = [],
@@ -45,9 +70,18 @@ export async function exportStatic(
   await registry.load();
 
   const rows = await runQuery<{ name: string }>(QUERIES.allPackageNames);
+  const synthetic = await syntheticNames();
   const all = [
     ...new Set(rows.map((r) => String(r.name ?? "")).filter(Boolean)),
-  ].sort();
+  ]
+    // The demo ingests the typosquat fixture into the same graph, so invented
+    // names like "aixos" and "debgu" sit beside real ones. Shipping those in a
+    // public deploy would present fabricated packages as real npm data, with
+    // nothing on screen to distinguish them. They are excluded here rather than
+    // labelled, because the deploy is a shop window and the typosquat feature
+    // is demonstrated by its own command against its own fixture.
+    .filter((n) => !synthetic.has(n))
+    .sort();
 
   if (all.length === 0) {
     throw new Error(
@@ -142,6 +176,8 @@ export async function exportStatic(
       JSON.stringify({ package: gateFor, vulnerable, own }),
       "utf8",
     );
+    // Scratch input for the gate, not part of the published surface.
+    await rm(tmp, { force: true });
   }
 
   const manifest: ExportManifest = {
