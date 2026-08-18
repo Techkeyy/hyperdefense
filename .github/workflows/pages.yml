@@ -1,0 +1,47 @@
+# Publishes the dashboard to GitHub Pages.
+#
+# The dashboard is only useful to a reader if it is reachable without starting a
+# database, which is what `hyperdefense export` produces: real query results
+# captured to JSON and committed. This serves that folder.
+#
+# Pages rather than a CLI deploy because it needs no account beyond the one that
+# already owns the repository, and the URL does not expire.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it midway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail if the export is missing
+        # Publishing the shell without its data would put a dead dashboard on a
+        # public URL, which is worse than not publishing at all.
+        run: |
+          test -f src/web/public/data/manifest.json \
+            || { echo "No exported data. Run 'npm run export' and commit src/web/public/data."; exit 1; }
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: src/web/public
+      - id: deployment
+        uses: actions/deploy-pages@v4

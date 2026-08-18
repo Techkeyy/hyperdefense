@@ -44,7 +44,10 @@ async function api(path) {
 }
 
 async function staticFile(name) {
-  const res = await fetch(`/data/${name}`);
+  // Relative, not absolute. A subpath deploy (GitHub Pages serves at
+  // /<repo>/) would 404 on "/data/..." while working fine locally, which is
+  // the kind of break that only shows up after publishing.
+  const res = await fetch(`./data/${name}`);
   if (!res.ok) throw new Error(`no precomputed data for ${name}`);
   return res.json();
 }
