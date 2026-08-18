@@ -386,8 +386,24 @@ $("g-go").addEventListener("click", async () => {
   try {
     const r = await api(`/api/gate/${encodeURIComponent(pkg)}`);
     out.innerHTML = "";
-    out.appendChild(gateCard("Vulnerable application", "fixtures/vulnerable-app-lock.json", r.vulnerable));
-    out.appendChild(gateCard("This repository", "package-lock.json", r.own));
+
+    // On a static deploy the gate result is precomputed for one package, so
+    // asking about another returns that one regardless. Say which package the
+    // result is actually for rather than letting it read as an answer about
+    // whatever happens to be in the search box.
+    const ranFor = r.package || pkg;
+    if (ranFor !== pkg) {
+      const note = document.createElement("p");
+      note.className = "num dim";
+      note.style.margin = "0 0 14px";
+      note.textContent =
+        `This deploy has one precomputed gate run, for ${ranFor}. ` +
+        `Run it locally to gate ${pkg}.`;
+      out.appendChild(note);
+    }
+
+    out.appendChild(gateCard(`Vulnerable application, gating ${ranFor}`, "fixtures/vulnerable-app-lock.json", r.vulnerable));
+    out.appendChild(gateCard(`This repository, gating ${ranFor}`, "package-lock.json", r.own));
   } catch (err) {
     out.innerHTML = `<p class="num" style="color:var(--accent)">${err.message}</p>`;
   }
