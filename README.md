@@ -348,7 +348,7 @@ npm run build   # compile to dist/
 Pure logic (scoring, distance metrics, plan building, lockfile parsing) is kept
 separate from I/O so it is unit-testable with no database and no network.
 
-102 tests currently pass, covering the id registry's persistence round trip,
+105 tests currently pass, covering the id registry's persistence round trip,
 snapshot replay fidelity, remediation classification, HTTP value decoding, the
 CI gate against nested transitive resolutions, scoped names and lockfile v1/v3,
 and 24 adversarial cases described under

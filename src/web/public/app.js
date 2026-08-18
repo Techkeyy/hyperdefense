@@ -366,6 +366,20 @@ function render(ctx, W, H, nodes, links) {
   }
 }
 
+/**
+ * Escape text destined for innerHTML.
+ *
+ * The package names in these messages come straight from the input fields, so
+ * interpolating them raw let a typed <img onerror=...> execute. Self-inflicted
+ * only, and there is no session or backend to steal here, but a tool that
+ * argues about supply chain safety should not render whatever it is handed.
+ */
+function esc(v) {
+  return String(v).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
 /* ---------------------------------------------------------------- paths */
 
 /**
@@ -446,7 +460,7 @@ async function runTrace(from, to) {
   try {
     const r = await api(`/api/paths?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
     if (r.error) {
-      out.innerHTML = `<p class="num" style="color:var(--accent)">The path query failed: ${r.error}</p>`;
+      out.innerHTML = `<p class="num" style="color:var(--accent)">The path query failed: ${esc(r.error)}</p>`;
       return;
     }
     if (r.undecodableRows > 0) {
@@ -467,7 +481,7 @@ async function runTrace(from, to) {
       } else if (reach) {
         extra = ` It reaches no package in this graph.`;
       }
-      out.innerHTML = `<p class="num dim">No attack path from ${from} to ${to} within ${hops} hops. HydraDB searched every package ${from} reaches.${extra}</p>`;
+      out.innerHTML = `<p class="num dim">No attack path from ${esc(from)} to ${esc(to)} within ${hops} hops. HydraDB searched every package ${esc(from)} reaches.${esc(extra)}</p>`;
       return;
     }
     out.innerHTML = "";
@@ -493,7 +507,7 @@ async function runTrace(from, to) {
       out.appendChild(div);
     }
   } catch (err) {
-    out.innerHTML = `<p class="num" style="color:var(--accent)">${err.message}</p>`;
+    out.innerHTML = `<p class="num" style="color:var(--accent)">${esc(err.message)}</p>`;
   }
 }
 
@@ -528,7 +542,7 @@ $("g-go").addEventListener("click", async () => {
     out.appendChild(gateCard(`Vulnerable application, gating ${ranFor}`, "fixtures/vulnerable-app-lock.json", r.vulnerable));
     out.appendChild(gateCard(`This repository, gating ${ranFor}`, "package-lock.json", r.own));
   } catch (err) {
-    out.innerHTML = `<p class="num" style="color:var(--accent)">${err.message}</p>`;
+    out.innerHTML = `<p class="num" style="color:var(--accent)">${esc(err.message)}</p>`;
   }
 });
 
