@@ -423,3 +423,24 @@ footer { padding: 40px; border-top: 1px solid var(--border); }
   .contrast { gap: 22px; }
   .chain { font-size: 12px; }
 }
+
+/*
+ * Touch sizing keyed to the input device rather than the viewport.
+ *
+ * The phone breakpoint above fixed tap targets at 560px and under, which left
+ * tablets (768px, and every bit as touch-driven) with 7 controls under the
+ * 44px guideline. Width was the wrong signal: what matters is whether a finger
+ * or a cursor is doing the pointing.
+ */
+@media (pointer: coarse) {
+  .navlink, .brand {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .btn { min-height: 44px; }
+  .reach-chip { min-height: 40px; padding: 10px 12px; }
+  input[type="text"] { min-height: 46px; font-size: 16px; }
+}
