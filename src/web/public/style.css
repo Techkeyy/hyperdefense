@@ -373,3 +373,48 @@ footer { padding: 40px; border-top: 1px solid var(--border); }
   color: var(--fg);
   border-color: var(--accent);
 }
+
+/*
+ * Phones. Measured at 375x812: the hero ran 1273px tall (over 1.5 screens
+ * before any content), nav links were 14 to 28px high against a 44px touch
+ * guideline, and the 13px inputs made iOS Safari zoom the whole page on focus.
+ */
+@media (max-width: 560px) {
+  section { padding: 104px 20px 64px; }
+
+  .hero h1 { font-size: 32px; line-height: 1.12; }
+  .hero-copy p { font-size: 15px; }
+  .hero::before { background-position: 58% 20%; opacity: 0.6; }
+
+  /* Touch targets. The nav is the first thing a thumb reaches for. */
+  .nav-inner { padding: 0 20px; }
+  .nav-links { gap: 4px; }
+  .navlink {
+    font-size: 12px;
+    padding: 12px 8px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .brand { padding: 12px 0; min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* 16px stops iOS Safari zooming the page when a field takes focus. */
+  input, select, textarea { font-size: 16px; }
+  #q, #p-from, #p-to { width: 100%; min-height: 48px; }
+
+  /* Stack the trace form instead of wrapping it into an ambiguous grid. */
+  .path-form { flex-direction: column; align-items: stretch; gap: 10px; }
+  .path-form .arrow { text-align: left; padding-left: 2px; }
+  .path-form .btn { width: 100%; min-height: 48px; }
+
+  .reach-chip { min-height: 40px; padding: 10px 12px; font-size: 13px; }
+  .btn { min-height: 44px; }
+
+  /* Small caps labels were 10px, which is under the readable floor on a phone. */
+  .eyebrow, .stat-label { font-size: 11px; }
+  .stat-note, .proof { font-size: 12px; }
+
+  #graph { height: 340px; }
+  .contrast { gap: 22px; }
+  .chain { font-size: 12px; }
+}

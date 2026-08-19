@@ -256,11 +256,42 @@ const COLORS = {
 
 let anim = null;
 
+/** The last graph handed to draw(), so a resize can repaint it. */
+let LAST_GRAPH = null;
+
+/*
+ * Repaint when the canvas gets a real size.
+ *
+ * draw() reads clientWidth at call time. On a narrow viewport the first draw
+ * ran before layout had settled, so the width was 0, the backing buffer was
+ * created 0 wide, and the graph painted nothing at all: no error, just an
+ * empty box where the argument was supposed to be. This also covers rotation
+ * and window resizing, which previously left the graph at its old size.
+ */
+if (typeof ResizeObserver !== "undefined") {
+  const canvasEl = $("graph");
+  let lastW = 0;
+  new ResizeObserver(() => {
+    const w = canvasEl.clientWidth;
+    if (w > 0 && w !== lastW && LAST_GRAPH) {
+      lastW = w;
+      draw(LAST_GRAPH);
+    }
+  }).observe(canvasEl);
+}
+
 function draw(g) {
   const canvas = $("graph");
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.clientWidth;
   const H = canvas.clientHeight;
+  LAST_GRAPH = g;
+  if (W === 0 || H === 0) {
+    // No usable size yet. Painting now would fill a zero-width buffer and
+    // produce an empty canvas with nothing to indicate why. The observer
+    // above redraws as soon as a real width exists.
+    return;
+  }
   canvas.width = W * dpr;
   canvas.height = H * dpr;
   const ctx = canvas.getContext("2d");
