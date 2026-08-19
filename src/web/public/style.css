@@ -432,7 +432,7 @@ footer { padding: 40px; border-top: 1px solid var(--border); }
  * 44px guideline. Width was the wrong signal: what matters is whether a finger
  * or a cursor is doing the pointing.
  */
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 900px) {
   .navlink, .brand {
     min-height: 44px;
     display: inline-flex;
