@@ -227,6 +227,14 @@ a literal source id, which is why the reverse edge is materialised; and
 `algo.MSpaths` returns shortest paths per pair rather than a reachable set, so
 it is used for attack paths and deliberately not for reachability.
 
+Three findings from that work are filed upstream, each with a reproduction and
+the source line: [#107](https://github.com/hydra-db/hydradb/issues/107) (query
+errors suppressed on both transports, now being fixed in
+[PR #110](https://github.com/hydra-db/hydradb/pull/110)),
+[#108](https://github.com/hydra-db/hydradb/issues/108) (UID 10001 against Docker
+named volumes), and [#109](https://github.com/hydra-db/hydradb/issues/109)
+(variable-length MATCH source id constraint, documentation).
+
 **Tech stack**
 
 TypeScript, Node 22, HydraDB (Bolt and its HTTP query API), the public npm

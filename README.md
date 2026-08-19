@@ -464,7 +464,20 @@ pagination (the default transport for everything else), and the native
 
 Four findings from building on it, each reproducible and each documented in
 [`docs/HYDRADB-CYPHER-SPEC.md`](docs/HYDRADB-CYPHER-SPEC.md) with the source
-line that explains it. They are reported here as observations, not complaints:
+line that explains it. They are reported here as observations, not complaints.
+
+Three are filed upstream:
+
+| Finding | Issue | Status |
+|---|---|---|
+| Query errors suppressed on both transports | [hydra-db/hydradb#107](https://github.com/hydra-db/hydradb/issues/107) | fix in progress, [PR #110](https://github.com/hydra-db/hydradb/pull/110) |
+| UID 10001 vs Docker named volumes | [hydra-db/hydradb#108](https://github.com/hydra-db/hydradb/issues/108) | open |
+| Variable-length MATCH source id constraint (docs) | [hydra-db/hydradb#109](https://github.com/hydra-db/hydradb/issues/109) | open |
+
+On #107 a contributor found that `GraphError::class()` already exists in
+`src/core/error.rs` and returns a coarse, client-safe category, but is only
+wired into telemetry. The fix is to use it in the catch-all arms of both
+client error paths, which is smaller than anything suggested in the report.
 
 1. **The Bolt decode is unreliable for this driver pairing.** `neo4j-driver`
    throws `The value of "offset" is out of range ... Received N` from a Node
