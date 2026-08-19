@@ -381,6 +381,9 @@ footer { padding: 40px; border-top: 1px solid var(--border); }
  */
 @media (max-width: 560px) {
   section { padding: 104px 20px 64px; }
+  /* section.hero sets padding-top: 168px at (0,1,1), which outranks a bare
+     `section`, so the hero kept its desktop top padding on phones. */
+  section.hero { padding-top: 112px; }
 
   .hero h1 { font-size: 32px; line-height: 1.12; }
   .hero-copy p { font-size: 15px; }
@@ -398,8 +401,10 @@ footer { padding: 40px; border-top: 1px solid var(--border); }
   }
   .brand { padding: 12px 0; min-height: 44px; display: inline-flex; align-items: center; }
 
-  /* 16px stops iOS Safari zooming the page when a field takes focus. */
-  input, select, textarea { font-size: 16px; }
+  /* 16px stops iOS Safari zooming the page when a field takes focus.
+     input[type="text"] is (0,1,1) and beat the bare `input` selector, so this
+     has to match that specificity to take effect. */
+  input[type="text"], select, textarea { font-size: 16px; }
   #q, #p-from, #p-to { width: 100%; min-height: 48px; }
 
   /* Stack the trace form instead of wrapping it into an ambiguous grid. */
